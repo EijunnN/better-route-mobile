@@ -346,7 +346,7 @@ flutter build ios --release
 
 ## Relacionado
 
-- [BetterRoute Backend](https://github.com/EijunnN/flash-route) - API Next.js
+- [BetterRoute Backend](https://github.com/EijunnN/better-route) - API Next.js
 
 ---
 
