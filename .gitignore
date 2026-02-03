@@ -12,6 +12,18 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Secrets and keys
+*.jks
+*.keystore
+key.properties
+google-services.json
+GoogleService-Info.plist
+
 # IntelliJ related
 *.iml
 *.ipr

@@ -29,6 +29,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(routeProvider.notifier).loadRoute();
       ref.read(locationProvider.notifier).startTracking();
+      // Start sending location to server
+      ref.read(trackingProvider.notifier).startTracking();
     });
   }
 
@@ -66,6 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     if (confirmed == true) {
       ref.read(locationProvider.notifier).stopTracking();
+      ref.read(trackingProvider.notifier).stopTracking();
       ref.read(routeProvider.notifier).clear();
       await ref.read(authProvider.notifier).logout();
     }

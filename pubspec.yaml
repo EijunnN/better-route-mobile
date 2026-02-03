@@ -30,6 +30,9 @@ dependencies:
   # Location
   geolocator: ^13.0.2
 
+  # Battery
+  battery_plus: ^6.0.3
+
   # Camera & Media
   image_picker: ^1.1.2
 

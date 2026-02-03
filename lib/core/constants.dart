@@ -12,6 +12,7 @@ class ApiConfig {
   static const String myOrdersEndpoint = '/api/mobile/driver/my-orders';
   static const String routeStopsEndpoint = '/api/route-stops';
   static const String uploadEndpoint = '/api/upload/presigned-url';
+  static const String locationEndpoint = '/api/mobile/driver/location';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
@@ -34,4 +35,10 @@ class AppConstants {
   // Location settings
   static const double nearbyDistanceMeters = 100;
   static const int locationUpdateIntervalSeconds = 10;
+
+  // Tracking settings
+  static const int trackingIntervalSeconds = 20; // Send location every 20 seconds
+  static const int trackingDistanceFilterMeters = 15; // Minimum distance to trigger update
+  static const int trackingRetryAttempts = 3; // Number of retry attempts on failure
+  static const int trackingRetryDelaySeconds = 5; // Delay between retries
 }
