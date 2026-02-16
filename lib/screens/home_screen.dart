@@ -76,7 +76,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final routeState = ref.watch(routeProvider);
     final theme = Theme.of(context);
 
-    return SafeArea(
+    return ColoredBox(
+      color: theme.colorScheme.background,
+      child: SafeArea(
       child: Scaffold(
       floatingHeader: false,
       headers: [
@@ -173,6 +175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
         ],
       ),
+    ),
     ),
     );
   }

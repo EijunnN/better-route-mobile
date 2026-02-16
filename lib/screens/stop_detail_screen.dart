@@ -41,7 +41,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       );
     }
 
-    return SafeArea(
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.background,
+      child: SafeArea(
       child: Scaffold(
       headers: [
         AppBar(
@@ -98,6 +100,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           const SizedBox(height: 16),
         ],
       ),
+    ),
     ),
     );
   }

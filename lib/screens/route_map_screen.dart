@@ -26,7 +26,9 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     final stops = routeState.stops;
     final theme = Theme.of(context);
 
-    return SafeArea(
+    return ColoredBox(
+      color: theme.colorScheme.background,
+      child: SafeArea(
       child: Scaffold(
       headers: [
         AppBar(
@@ -139,6 +141,7 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                   ),
               ],
             ),
+    ),
     ),
     );
   }
