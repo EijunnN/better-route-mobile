@@ -17,68 +17,75 @@ class DriverHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        border: Border(
+        border: const Border(
           bottom: BorderSide(color: AppColors.border),
         ),
       ),
       child: Row(
         children: [
-          // Avatar
+          // Avatar - 36px circle with primary bg
           Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
               color: AppColors.primary,
-              borderRadius: BorderRadius.circular(14),
+              shape: BoxShape.circle,
             ),
             child: driver?.photo != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
+                ? ClipOval(
                     child: Image.network(
                       driver!.photo!,
                       fit: BoxFit.cover,
+                      width: 36,
+                      height: 36,
                       errorBuilder: (_, __, ___) => _buildInitials(),
                     ),
                   )
                 : _buildInitials(),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
 
-          // Name and vehicle
+          // Name
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  driver?.name ?? 'Conductor',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                Flexible(
+                  child: Text(
+                    driver?.name ?? 'Conductor',
+                    style: AppTypography.titleSmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+
+                // Vehicle plate chip
                 if (vehicle != null) ...[
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.local_shipping_outlined,
-                        size: 14,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      vehicle!.displayName,
+                      style: AppTypography.labelSmall.copyWith(
                         color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          vehicle!.displayName,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ],
@@ -88,9 +95,12 @@ class DriverHeader extends StatelessWidget {
           // Logout button
           IconButton(
             onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded),
+            icon: const Icon(Icons.logout_rounded, size: 20),
             color: AppColors.textSecondary,
             tooltip: 'Cerrar sesion',
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
         ],
       ),
@@ -102,9 +112,9 @@ class DriverHeader extends StatelessWidget {
       child: Text(
         driver?.initials ?? '?',
         style: const TextStyle(
-          color: Colors.white,
+          color: AppColors.textOnPrimary,
           fontWeight: FontWeight.w600,
-          fontSize: 18,
+          fontSize: 14,
         ),
       ),
     );

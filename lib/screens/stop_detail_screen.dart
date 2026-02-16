@@ -40,74 +40,61 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          // App bar
-          SliverAppBar(
-            expandedHeight: 0,
-            pinned: true,
-            backgroundColor: theme.colorScheme.surface,
-            foregroundColor: AppColors.textPrimary,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            title: Text(
-              'Parada #${currentStop.sequence}',
-              style: theme.textTheme.titleLarge,
-            ),
-            actions: [
-              // Copy tracking ID
-              IconButton(
-                icon: const Icon(Icons.copy_outlined),
-                tooltip: 'Copiar tracking',
-                onPressed: () => _copyTrackingId(currentStop),
-              ),
-            ],
-          ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Status card
-                  _buildStatusCard(currentStop),
-
-                  const SizedBox(height: 16),
-
-                  // Customer info
-                  _buildCustomerCard(currentStop),
-
-                  const SizedBox(height: 16),
-
-                  // Location card
-                  _buildLocationCard(currentStop),
-
-                  const SizedBox(height: 16),
-
-                  // Order details
-                  if (currentStop.order != null)
-                    _buildOrderCard(currentStop.order!),
-
-                  const SizedBox(height: 16),
-
-                  // Notes
-                  if (currentStop.order?.notes != null &&
-                      currentStop.order!.notes!.isNotEmpty)
-                    _buildNotesCard(currentStop.order!.notes!),
-
-                  const SizedBox(height: 100), // Space for bottom actions
-                ],
-              ),
-            ),
+      appBar: AppBar(
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: AppColors.textPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'Parada #${currentStop.sequence}',
+          style: theme.textTheme.titleLarge,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.copy_outlined, size: 22),
+            tooltip: 'Copiar tracking',
+            onPressed: () => _copyTrackingId(currentStop),
           ),
         ],
       ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Status card
+          _buildStatusCard(currentStop),
 
-      // Bottom action buttons
+          const SizedBox(height: 16),
+
+          // Customer info
+          _buildCustomerCard(currentStop),
+
+          const SizedBox(height: 16),
+
+          // Location card
+          _buildLocationCard(currentStop),
+
+          const SizedBox(height: 16),
+
+          // Order details
+          if (currentStop.order != null)
+            _buildOrderCard(currentStop.order!),
+
+          if (currentStop.order != null)
+            const SizedBox(height: 16),
+
+          // Notes
+          if (currentStop.order?.notes != null &&
+              currentStop.order!.notes!.isNotEmpty)
+            _buildNotesCard(currentStop.order!.notes!),
+
+          // Bottom spacing for action bar
+          const SizedBox(height: 100),
+        ],
+      ),
+
+      // Bottom action buttons - fixed with SafeArea
       bottomNavigationBar: currentStop.status.isDone
           ? _buildCompletedBar(currentStop)
           : _buildActionBar(currentStop),
@@ -147,9 +134,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
+        color: statusColor.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        border: Border.all(color: statusColor.withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -157,7 +144,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.2),
+              color: statusColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(statusIcon, color: statusColor, size: 28),
@@ -274,16 +261,16 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                   child: Row(
                     children: [
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: AppColors.successLight,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
                           Icons.phone,
                           color: AppColors.success,
-                          size: 20,
+                          size: 22,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -361,7 +348,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withOpacity(0.2),
+                      color: AppColors.primaryLight.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -395,27 +382,41 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Navigation buttons
+            // Navigation buttons - prominent
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openNavigation(stop),
-                    icon: const Icon(Icons.navigation_outlined),
-                    label: const Text('Google Maps'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openNavigation(stop),
+                      icon: const Icon(Icons.navigation_outlined, size: 20),
+                      label: const Text('Google Maps'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openWaze(stop),
-                    icon: const Icon(Icons.directions_car_outlined),
-                    label: const Text('Waze'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openWaze(stop),
+                      icon: const Icon(Icons.directions_car_outlined, size: 20),
+                      label: const Text('Waze'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -571,6 +572,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                   backgroundColor: stop.status.isInProgress
                       ? AppColors.success
                       : AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: _isProcessing
                     ? const SizedBox(
@@ -593,8 +597,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                           const SizedBox(width: 8),
                           Text(
                             stop.status.isInProgress
-                                ? 'Marcar como Entregado'
-                                : 'Iniciar Entrega',
+                                ? 'Completar entrega'
+                                : 'Iniciar entrega',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -605,7 +609,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
               ),
             ),
 
-            // Secondary action - only show when in progress
+            // Secondary action - failure button when in progress
             if (stop.status.isInProgress) ...[
               const SizedBox(height: 12),
               SizedBox(
@@ -616,6 +620,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,
                     side: const BorderSide(color: AppColors.error),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,

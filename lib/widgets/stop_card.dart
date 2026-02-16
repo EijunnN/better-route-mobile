@@ -32,282 +32,210 @@ class StopCard extends ConsumerWidget {
       distanceText = locationService.formatDistance(distance);
     }
 
+    final statusColor = _getStatusColor();
+    final isDone = stop.status.isDone;
+    final isActive = stop.status.isInProgress;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: stop.status.isInProgress
-                ? AppColors.primary
-                : AppColors.border,
-            width: stop.status.isInProgress ? 2 : 1,
+            color: AppColors.border,
+            width: 1,
           ),
-          boxShadow: stop.status.isInProgress
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header row
-                  Row(
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left accent border for active/done states
+              if (isActive || stop.status.isCompleted || stop.status.isFailed)
+                Container(
+                  width: 3,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(14),
+                    ),
+                  ),
+                ),
+
+              // Main content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Sequence number
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: _getStatusColor().withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${stop.sequence}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: _getStatusColor(),
+                      // Top row: sequence circle + name + status badge + chevron
+                      Row(
+                        children: [
+                          // Sequence number circle
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${stop.sequence}',
+                                style: AppTypography.labelMedium.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: statusColor,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                          const SizedBox(width: 10),
 
-                      // Customer name and tracking
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              stop.displayName,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                decoration: stop.status.isCompleted ||
-                                        stop.status.isSkipped
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                color: stop.status.isDone
-                                    ? AppColors.textSecondary
-                                    : null,
+                          // Name and tracking
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  stop.displayName,
+                                  style: AppTypography.titleSmall.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: isDone
+                                        ? AppColors.textSecondary
+                                        : AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  stop.trackingDisplay,
+                                  style: AppTypography.labelSmall.copyWith(
+                                    color: AppColors.textTertiary,
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 8),
+
+                          // Status badge
+                          _StatusBadge(status: stop.status),
+
+                          const SizedBox(width: 4),
+
+                          // Chevron
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: AppColors.textTertiary,
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Address row
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 14,
+                            color: AppColors.textTertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              stop.address,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              stop.trackingDisplay,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.textTertiary,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Status badge
-                      _StatusBadge(status: stop.status),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Address
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          stop.address,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
 
-                  // Time and distance row
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      // Time info (ETA and/or time window)
-                      Expanded(
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
+                      // Bottom row: time info + distance
+                      if (_hasTimeInfo || (distanceText != null && !isDone)) ...[
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
                             // ETA
                             if (stop.estimatedArrival != null)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.schedule_outlined,
-                                    size: 14,
-                                    color: AppColors.textTertiary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    stop.arrivalTimeDisplay,
-                                    style: theme.textTheme.labelMedium?.copyWith(
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                              _InfoChip(
+                                icon: Icons.schedule_outlined,
+                                text: stop.arrivalTimeDisplay,
+                                color: AppColors.textSecondary,
                               ),
 
                             // Time window
-                            if (stop.timeWindow?.hasWindow == true)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.access_time_outlined,
-                                    size: 14,
-                                    color: AppColors.warning,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    stop.timeWindow!.displayText,
-                                    style: theme.textTheme.labelMedium?.copyWith(
-                                      color: AppColors.warning,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                            if (stop.timeWindow?.hasWindow == true) ...[
+                              if (stop.estimatedArrival != null)
+                                const SizedBox(width: 10),
+                              _InfoChip(
+                                icon: Icons.access_time_outlined,
+                                text: stop.timeWindow!.displayText,
+                                color: AppColors.warning,
+                              ),
+                            ],
+
+                            const Spacer(),
+
+                            // Distance
+                            if (distanceText != null && !isDone)
+                              _InfoChip(
+                                icon: Icons.navigation_outlined,
+                                text: distanceText,
+                                color: AppColors.primary,
+                                bold: true,
                               ),
                           ],
                         ),
-                      ),
+                      ],
 
-                      // Distance
-                      if (distanceText != null && !stop.status.isDone) ...[
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.navigation_outlined,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          distanceText,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      // Notes indicator
+                      if (stop.order?.notes != null &&
+                          stop.order!.notes!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.sticky_note_2_outlined,
+                              size: 12,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Tiene notas',
+                              style: AppTypography.labelSmall.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
                   ),
-
-                  // Notes indicator
-                  if (stop.order?.notes != null &&
-                      stop.order!.notes!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.warningLight,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            size: 12,
-                            color: AppColors.warning,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Tiene notas',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Action indicator
-            if (!stop.status.isDone)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(15),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      stop.status.isInProgress
-                          ? Icons.play_arrow_rounded
-                          : Icons.touch_app_outlined,
-                      size: 18,
-                      color: stop.status.isInProgress
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      stop.status.isInProgress
-                          ? 'Continuar entrega'
-                          : 'Ver detalles',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: stop.status.isInProgress
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: stop.status.isInProgress
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                  ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  bool get _hasTimeInfo =>
+      stop.estimatedArrival != null ||
+      (stop.timeWindow?.hasWindow == true);
 
   Color _getStatusColor() {
     switch (stop.status) {
@@ -325,6 +253,38 @@ class StopCard extends ConsumerWidget {
   }
 }
 
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  final bool bold;
+
+  const _InfoChip({
+    required this.icon,
+    required this.text,
+    required this.color,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          style: AppTypography.labelSmall.copyWith(
+            color: color,
+            fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StatusBadge extends StatelessWidget {
   final StopStatus status;
 
@@ -335,56 +295,43 @@ class _StatusBadge extends StatelessWidget {
     Color bgColor;
     Color textColor;
     String text;
-    IconData icon;
 
     switch (status) {
       case StopStatus.pending:
         bgColor = AppColors.pendingBg;
         textColor = AppColors.pending;
         text = 'Pendiente';
-        icon = Icons.schedule;
       case StopStatus.inProgress:
         bgColor = AppColors.inProgressBg;
         textColor = AppColors.inProgress;
         text = 'En curso';
-        icon = Icons.play_circle_outline;
       case StopStatus.completed:
         bgColor = AppColors.completedBg;
         textColor = AppColors.completed;
         text = 'Entregado';
-        icon = Icons.check_circle_outline;
       case StopStatus.failed:
         bgColor = AppColors.failedBg;
         textColor = AppColors.failed;
         text = 'Fallido';
-        icon = Icons.cancel_outlined;
       case StopStatus.skipped:
         bgColor = AppColors.skippedBg;
         textColor = AppColors.skipped;
         text = 'Omitido';
-        icon = Icons.skip_next;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        style: AppTypography.labelSmall.copyWith(
+          fontWeight: FontWeight.w600,
+          color: textColor,
+          fontSize: 10,
+        ),
       ),
     );
   }

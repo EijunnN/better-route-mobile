@@ -22,7 +22,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 900),
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -32,7 +32,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
@@ -46,12 +46,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _initializeAuth() async {
-    // Small delay for splash effect
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 600));
 
     if (!mounted) return;
 
-    // Initialize auth state
     await ref.read(authProvider.notifier).initialize();
   }
 
@@ -64,7 +62,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: Colors.white,
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -76,58 +74,51 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Logo
+                    // Logo icon
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 88,
+                      height: 88,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(22),
                       ),
                       child: const Icon(
                         Icons.local_shipping_rounded,
-                        size: 56,
-                        color: AppColors.primary,
+                        size: 48,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
                     // App name
                     const Text(
-                      'Entregas',
+                      'BetterRoute',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 32,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: AppColors.primary,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'App para conductores',
+                    const Text(
+                      'Plataforma de entregas',
                       style: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w400,
-                        color: Colors.white.withOpacity(0.8),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 48),
                     // Loading indicator
-                    SizedBox(
-                      width: 32,
-                      height: 32,
+                    const SizedBox(
+                      width: 28,
+                      height: 28,
                       child: CircularProgressIndicator(
-                        strokeWidth: 3,
+                        strokeWidth: 2.5,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white.withOpacity(0.8),
+                          AppColors.primary,
                         ),
                       ),
                     ),

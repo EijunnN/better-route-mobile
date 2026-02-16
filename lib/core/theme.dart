@@ -2,62 +2,66 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// App Color Palette - Matches web frontend (globals.css)
-/// Pink/Magenta theme converted from OKLCH
+/// Golden/Amber theme converted from OKLCH
 class AppColors {
-  // Primary - Pink/Magenta (from --primary in globals.css)
-  static const Color primary = Color(0xFFBA416C);
-  static const Color primaryDark = Color(0xFF8B3152);
-  static const Color primaryLight = Color(0xFFE8D0DB);
+  // Primary - Golden/Amber (from --primary in web globals.css)
+  static const Color primary = Color(0xFFC49A2D); // warm golden amber
+  static const Color primaryDark = Color(0xFF9B7A1F); // darker gold
+  static const Color primaryLight = Color(0xFFF5E6C1); // light gold tint
 
-  // Accent - Same as primary for consistency
-  static const Color accent = Color(0xFFBA416C);
-  static const Color accentDark = Color(0xFF8B3152);
+  // Accent
+  static const Color accent = Color(0xFFC49A2D);
+  static const Color accentDark = Color(0xFF9B7A1F);
 
-  // Status colors
+  // Secondary - Blue-Teal (from --secondary in web)
+  static const Color secondary = Color(0xFF507F8A);
+  static const Color secondaryLight = Color(0xFFE0F2F5);
+
+  // Status colors (keep these recognizable)
   static const Color success = Color(0xFF16A34A);
   static const Color successLight = Color(0xFFDCFCE7);
   static const Color warning = Color(0xFFEA580C);
   static const Color warningLight = Color(0xFFFFF7ED);
-  static const Color error = Color(0xFFB84545); // from --destructive
+  static const Color error = Color(0xFFDC4840); // from --destructive
   static const Color errorLight = Color(0xFFFEE2E2);
-  static const Color info = Color(0xFF0284C7);
-  static const Color infoLight = Color(0xFFE0F2FE);
+  static const Color info = Color(0xFF507F8A); // use secondary
+  static const Color infoLight = Color(0xFFE0F2F5);
 
-  // Stop status colors
-  static const Color pending = Color(0xFF9E7A8C);
-  static const Color pendingBg = Color(0xFFF2EAF0);
-  static const Color inProgress = Color(0xFFBA416C);
-  static const Color inProgressBg = Color(0xFFFCE7EF);
+  // Stop status colors - use amber for in-progress instead of pink
+  static const Color pending = Color(0xFF6E7094); // gray-purple (muted-foreground)
+  static const Color pendingBg = Color(0xFFF5F4F8); // muted bg
+  static const Color inProgress = Color(0xFFC49A2D); // primary amber
+  static const Color inProgressBg = Color(0xFFFFF8E6); // light amber
   static const Color completed = Color(0xFF16A34A);
   static const Color completedBg = Color(0xFFDCFCE7);
-  static const Color failed = Color(0xFFB84545);
+  static const Color failed = Color(0xFFDC4840);
   static const Color failedBg = Color(0xFFFEE2E2);
   static const Color skipped = Color(0xFF6B7280);
   static const Color skippedBg = Color(0xFFF3F4F6);
 
-  // Neutrals - Pink-tinted palette (from globals.css)
-  static const Color background = Color(0xFFFAF7F8); // --background
+  // Neutrals - Blue-gray tinted (from web globals.css)
+  static const Color background = Color(0xFFFFFFFF); // clean white
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceVariant = Color(0xFFF2EAF0); // --muted
+  static const Color surfaceVariant = Color(0xFFF5F4F8); // --muted
   static const Color card = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFDFC4D3); // --border
-  static const Color divider = Color(0xFFDFC4D3);
+  static const Color border = Color(0xFFE4E2EA); // --border
+  static const Color divider = Color(0xFFE4E2EA);
 
-  // Text (from --foreground and --muted-foreground)
-  static const Color textPrimary = Color(0xFF5E2341); // --foreground
-  static const Color textSecondary = Color(0xFF7A4A62); // --muted-foreground
-  static const Color textTertiary = Color(0xFF9E7A8C);
+  // Text (from web --foreground and --muted-foreground)
+  static const Color textPrimary = Color(0xFF2D3254); // dark blue-gray
+  static const Color textSecondary = Color(0xFF6E7094); // muted gray-purple
+  static const Color textTertiary = Color(0xFF9E9EB5);
   static const Color textOnPrimary = Color(0xFFFFFFFF);
   static const Color textOnAccent = Color(0xFFFFFFFF);
 
-  // Dark theme colors (from .dark in globals.css)
-  static const Color darkBackground = Color(0xFF241A1E); // --background dark
-  static const Color darkSurface = Color(0xFF2C2327); // --card dark
-  static const Color darkSurfaceVariant = Color(0xFF3D3238);
-  static const Color darkCard = Color(0xFF2C2327);
-  static const Color darkBorder = Color(0xFF4A3D44); // --border dark
-  static const Color darkTextPrimary = Color(0xFFEDE0E4);
-  static const Color darkTextSecondary = Color(0xFFB8A5AC);
+  // Dark theme colors (from web .dark)
+  static const Color darkBackground = Color(0xFF1C1A2C);
+  static const Color darkSurface = Color(0xFF2C2C2C);
+  static const Color darkSurfaceVariant = Color(0xFF3A3A4A);
+  static const Color darkCard = Color(0xFF2C2C2C);
+  static const Color darkBorder = Color(0xFF404050);
+  static const Color darkTextPrimary = Color(0xFFCFCFCF);
+  static const Color darkTextSecondary = Color(0xFF9E9EAE);
 }
 
 /// App Typography
@@ -171,15 +175,15 @@ class AppTheme {
       brightness: Brightness.light,
       fontFamily: AppTypography.fontFamily,
 
-      // Colors - Pink/Magenta theme matching web frontend
+      // Colors - Golden/Amber theme matching web frontend
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: AppColors.textOnPrimary,
         primaryContainer: AppColors.primaryLight,
         onPrimaryContainer: AppColors.primaryDark,
-        secondary: AppColors.primaryLight,
-        onSecondary: AppColors.textPrimary,
-        secondaryContainer: AppColors.surfaceVariant,
+        secondary: AppColors.secondary,
+        onSecondary: Colors.white,
+        secondaryContainer: AppColors.secondaryLight,
         onSecondaryContainer: AppColors.textPrimary,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
@@ -370,11 +374,11 @@ class AppTheme {
 
       // Colors - Dark theme matching web frontend
       colorScheme: const ColorScheme.dark(
-        primary: Color(0xFFE05A8D), // Lighter pink for dark mode
+        primary: Color(0xFFD4AA2A), // Bright gold for dark mode
         onPrimary: Colors.white,
         primaryContainer: AppColors.primaryDark,
-        onPrimaryContainer: Color(0xFFFFD9E3),
-        secondary: AppColors.primaryLight,
+        onPrimaryContainer: Color(0xFFF5E6C1),
+        secondary: AppColors.secondary,
         onSecondary: AppColors.darkBackground,
         secondaryContainer: AppColors.darkSurfaceVariant,
         onSecondaryContainer: AppColors.darkTextPrimary,
@@ -424,7 +428,7 @@ class AppTheme {
       // Buttons
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFE05A8D), // Pink for dark mode
+          backgroundColor: Color(0xFFD4AA2A), // Gold for dark mode
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -440,10 +444,10 @@ class AppTheme {
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: Color(0xFFE05A8D),
+          foregroundColor: Color(0xFFD4AA2A),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           minimumSize: const Size(64, 56),
-          side: const BorderSide(color: Color(0xFFE05A8D), width: 1.5),
+          side: const BorderSide(color: Color(0xFFD4AA2A), width: 1.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -466,7 +470,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE05A8D), width: 2),
+          borderSide: const BorderSide(color: Color(0xFFD4AA2A), width: 2),
         ),
         labelStyle: AppTypography.bodyMedium.copyWith(
           color: AppColors.darkTextSecondary,

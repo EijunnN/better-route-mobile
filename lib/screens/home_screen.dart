@@ -48,7 +48,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cerrar Sesion'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('Cerrar sesion'),
         content: const Text('Estas seguro que deseas cerrar sesion?'),
         actions: [
           TextButton(
@@ -60,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,
             ),
-            child: const Text('Cerrar Sesion'),
+            child: const Text('Cerrar sesion'),
           ),
         ],
       ),
@@ -80,6 +83,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -126,13 +130,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 unselectedLabelColor: AppColors.textSecondary,
                 indicatorColor: AppColors.primary,
                 indicatorWeight: 3,
+                labelStyle: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
             // Content
             Expanded(
               child: routeState.isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    )
                   : TabBarView(
                       controller: _tabController,
                       children: [
@@ -215,24 +233,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 80,
-              height: 80,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: const Icon(
                 Icons.route_outlined,
-                size: 40,
+                size: 36,
                 color: AppColors.textTertiary,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Text(
               'Sin paradas',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -241,17 +259,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'No tienes paradas asignadas para hoy',
+              'No tienes paradas asignadas\npara hoy',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _onRefresh,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Actualizar'),
+            SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _onRefresh,
+                icon: const Icon(Icons.refresh, size: 20),
+                label: const Text('Actualizar'),
+              ),
             ),
           ],
         ),

@@ -83,214 +83,215 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
 
     return Container(
       padding: EdgeInsets.only(bottom: bottomPadding),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-              // Title
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.successLight,
-                      borderRadius: BorderRadius.circular(14),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.successLight,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.success,
+                        size: 24,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.check_circle,
-                      color: AppColors.success,
-                      size: 28,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Confirmar entrega',
+                            style: AppTypography.titleLarge.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            widget.stop.displayName,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Photo section label
+                Text(
+                  'Foto de evidencia',
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Photos grid or camera button
+                if (_photos.isNotEmpty) ...[
+                  SizedBox(
+                    height: 88,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _photos.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == _photos.length) {
+                          return _buildAddPhotoButton();
+                        }
+                        return _buildPhotoThumbnail(index);
+                      },
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Confirmar Entrega',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          widget.stop.displayName,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
+                ] else ...[
+                  GestureDetector(
+                    onTap: _takePhoto,
+                    child: Container(
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: _isCapturing
+                          ? const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.camera_alt_rounded,
+                                  size: 22,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Tomar foto',
+                                  style: AppTypography.labelLarge.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ],
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-              // Photo section
-              Text(
-                'Foto de Evidencia *',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Toma una foto del paquete entregado o firma del cliente',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Photos grid
-              if (_photos.isNotEmpty) ...[
-                SizedBox(
-                  height: 100,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _photos.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == _photos.length) {
-                        // Add more button
-                        return _buildAddPhotoButton();
-                      }
-
-                      return _buildPhotoThumbnail(index);
-                    },
+                // Notes field
+                Text(
+                  'Notas (opcional)',
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-              ] else ...[
-                // Take photo button
-                GestureDetector(
-                  onTap: _takePhoto,
-                  child: Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.border,
-                        style: BorderStyle.solid,
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 2,
+                  style: AppTypography.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Agrega notas sobre la entrega...',
+                    filled: true,
+                    fillColor: AppColors.surfaceVariant,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Confirm button
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _photos.isEmpty ? null : _confirmDelivery,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppColors.surfaceVariant,
+                      disabledForegroundColor: AppColors.textTertiary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: _isCapturing
-                        ? const Center(child: CircularProgressIndicator())
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.camera_alt,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Tomar Foto',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                    child: Text(
+                      _photos.isEmpty
+                          ? 'Toma una foto primero'
+                          : 'Confirmar entrega',
+                      style: AppTypography.labelLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: _photos.isEmpty
+                            ? AppColors.textTertiary
+                            : Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Cancel link
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancelar',
+                      style: AppTypography.labelLarge.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ),
                 ),
               ],
-
-              const SizedBox(height: 24),
-
-              // Notes field
-              Text(
-                'Notas (opcional)',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _notesController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Agrega notas sobre la entrega...',
-                  filled: true,
-                  fillColor: AppColors.surfaceVariant,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Confirm button
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _photos.isEmpty ? null : _confirmDelivery,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    disabledBackgroundColor: AppColors.surfaceVariant,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle),
-                      const SizedBox(width: 8),
-                      Text(
-                        _photos.isEmpty
-                            ? 'Toma una foto primero'
-                            : 'Confirmar Entrega',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Cancel button
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -299,15 +300,15 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
 
   Widget _buildPhotoThumbnail(int index) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.only(right: 10),
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             child: Image.file(
               _photos[index],
-              width: 100,
-              height: 100,
+              width: 88,
+              height: 88,
               fit: BoxFit.cover,
             ),
           ),
@@ -317,15 +318,16 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
             child: GestureDetector(
               onTap: () => _removePhoto(index),
               child: Container(
-                width: 24,
-                height: 24,
-                decoration: const BoxDecoration(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
                   color: AppColors.error,
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 child: const Icon(
                   Icons.close,
-                  size: 16,
+                  size: 12,
                   color: Colors.white,
                 ),
               ),
@@ -340,26 +342,25 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
     return GestureDetector(
       onTap: _takePhoto,
       child: Container(
-        width: 100,
-        height: 100,
+        width: 88,
+        height: 88,
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.add_a_photo,
-              size: 28,
+              Icons.add_a_photo_outlined,
+              size: 22,
               color: AppColors.textSecondary,
             ),
             const SizedBox(height: 4),
             Text(
               'Agregar',
-              style: TextStyle(
-                fontSize: 12,
+              style: AppTypography.labelSmall.copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
