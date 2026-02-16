@@ -30,6 +30,10 @@ dependencies:
   # Location
   geolocator: ^13.0.2
 
+  # Maps
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
   # Battery
   battery_plus: ^6.0.3
 

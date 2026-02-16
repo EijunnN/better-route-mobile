@@ -6,12 +6,14 @@ import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/stop_detail_screen.dart';
+import '../screens/route_map_screen.dart';
 
 /// Route names
 class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
   static const String home = '/home';
+  static const String routeMap = '/home/map';
   static const String stopDetail = '/stop/:stopId';
 
   static String stopDetailPath(String stopId) => '/stop/$stopId';
@@ -83,6 +85,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const HomeScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
+
+      // Route map screen
+      GoRoute(
+        path: AppRoutes.routeMap,
+        name: 'routeMap',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const RouteMapScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },

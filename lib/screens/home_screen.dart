@@ -84,6 +84,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: routeState.stops.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: () => context.push(AppRoutes.routeMap),
+              tooltip: 'Ver mapa de ruta',
+              child: const Icon(Icons.map_outlined),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [
