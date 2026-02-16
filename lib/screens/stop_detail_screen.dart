@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar, showModalBottomSheet;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,33 +34,38 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
     if (currentStop == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Parada')),
-        body: const Center(child: Text('Parada no encontrada')),
+        headers: [
+          AppBar(title: const Text('Parada')),
+        ],
+        child: const Center(child: Text('Parada no encontrada')),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: AppColors.textPrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+      headers: [
+        AppBar(
+          leading: [
+            IconButton.ghost(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+          ],
+          title: Text('Parada #${currentStop.sequence}'),
+          trailing: [
+            IconButton.ghost(
+              icon: const Icon(Icons.copy_outlined, size: 22),
+              onPressed: () => _copyTrackingId(currentStop),
+            ),
+          ],
         ),
-        title: Text(
-          'Parada #${currentStop.sequence}',
-          style: theme.textTheme.titleLarge,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.copy_outlined, size: 22),
-            tooltip: 'Copiar tracking',
-            onPressed: () => _copyTrackingId(currentStop),
-          ),
-        ],
-      ),
-      body: ListView(
+      ],
+      footers: [
+        if (currentStop.status.isDone)
+          _buildCompletedBar(currentStop)
+        else
+          _buildActionBar(currentStop),
+      ],
+      child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Status card
@@ -81,23 +87,16 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           if (currentStop.order != null)
             _buildOrderCard(currentStop.order!),
 
-          if (currentStop.order != null)
-            const SizedBox(height: 16),
+          if (currentStop.order != null) const SizedBox(height: 16),
 
           // Notes
           if (currentStop.order?.notes != null &&
               currentStop.order!.notes!.isNotEmpty)
             _buildNotesCard(currentStop.order!.notes!),
 
-          // Bottom spacing for action bar
-          const SizedBox(height: 100),
+          const SizedBox(height: 16),
         ],
       ),
-
-      // Bottom action buttons - fixed with SafeArea
-      bottomNavigationBar: currentStop.status.isDone
-          ? _buildCompletedBar(currentStop)
-          : _buildActionBar(currentStop),
     );
   }
 
@@ -110,23 +109,23 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
     switch (stop.status) {
       case StopStatus.pending:
-        statusColor = AppColors.pending;
+        statusColor = StatusColors.pending;
         statusText = 'Pendiente';
         statusIcon = Icons.schedule;
       case StopStatus.inProgress:
-        statusColor = AppColors.inProgress;
+        statusColor = StatusColors.inProgress;
         statusText = 'En Progreso';
         statusIcon = Icons.play_circle;
       case StopStatus.completed:
-        statusColor = AppColors.completed;
+        statusColor = StatusColors.completed;
         statusText = 'Entregado';
         statusIcon = Icons.check_circle;
       case StopStatus.failed:
-        statusColor = AppColors.failed;
+        statusColor = StatusColors.failed;
         statusText = 'No Entregado';
         statusIcon = Icons.cancel;
       case StopStatus.skipped:
-        statusColor = AppColors.skipped;
+        statusColor = StatusColors.skipped;
         statusText = 'Omitido';
         statusIcon = Icons.skip_next;
     }
@@ -134,9 +133,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.08),
+        color: statusColor.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.2)),
+        border: Border.all(color: statusColor.withValues(alpha:0.2)),
       ),
       child: Row(
         children: [
@@ -144,7 +143,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.15),
+              color: statusColor.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(statusIcon, color: statusColor, size: 28),
@@ -156,7 +155,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
               children: [
                 Text(
                   statusText,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: statusColor,
                   ),
@@ -168,13 +168,14 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                       Icon(
                         Icons.access_time,
                         size: 14,
-                        color: AppColors.textSecondary,
+                        color: theme.colorScheme.mutedForeground,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'Ventana: ${stop.timeWindow!.displayText}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.mutedForeground,
                         ),
                       ),
                     ],
@@ -189,15 +190,17 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
               children: [
                 Text(
                   stop.arrivalTimeDisplay,
-                  style: theme.textTheme.headlineMedium?.copyWith(
+                  style: TextStyle(
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: statusColor,
                   ),
                 ),
                 Text(
                   'ETA',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.mutedForeground,
                   ),
                 ),
               ],
@@ -212,98 +215,94 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     final order = stop.order;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.person_outline, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Cliente',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Customer name
-            Text(
-              stop.displayName,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-
-            // Tracking ID
-            const SizedBox(height: 4),
-            Text(
-              'ID: ${stop.trackingDisplay}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-                fontFamily: 'monospace',
-              ),
-            ),
-
-            // Phone
-            if (order?.customerPhone != null &&
-                order!.customerPhone!.isNotEmpty) ...[
-              const Divider(height: 24),
-              InkWell(
-                onTap: () => _callPhone(order.customerPhone!),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: AppColors.successLight,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.phone,
-                          color: AppColors.success,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Telefono',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            Text(
-                              order.customerPhone!,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.textTertiary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person_outline, size: 20),
+              const SizedBox(width: 8),
+              const Text('Cliente').semiBold(),
             ],
+          ),
+          const SizedBox(height: 12),
+
+          // Customer name
+          Text(
+            stop.displayName,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+
+          // Tracking ID
+          const SizedBox(height: 4),
+          Text(
+            'ID: ${stop.trackingDisplay}',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+              fontFamily: 'monospace',
+            ),
+          ),
+
+          // Phone
+          if (order?.customerPhone != null &&
+              order!.customerPhone!.isNotEmpty) ...[
+            const Divider(height: 24),
+            GestureDetector(
+              onTap: () => _callPhone(order.customerPhone!),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: StatusColors.completedBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.phone,
+                        color: StatusColors.completed,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Telefono',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.mutedForeground,
+                            ),
+                          ),
+                          Text(
+                            order.customerPhone!,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -325,178 +324,142 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     }
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.location_on_outlined, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Ubicacion',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                if (distanceText != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.navigation,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          distanceText,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Address
-            Text(
-              stop.address,
-              style: theme.textTheme.bodyLarge,
-            ),
-
-            const SizedBox(height: 16),
-
-            // Navigation buttons - prominent
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openNavigation(stop),
-                      icon: const Icon(Icons.navigation_outlined, size: 20),
-                      label: const Text('Google Maps'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 20),
+              const SizedBox(width: 8),
+              const Text('Ubicacion').semiBold(),
+              const Spacer(),
+              if (distanceText != null)
+                SecondaryBadge(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.navigation,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openWaze(stop),
-                      icon: const Icon(Icons.directions_car_outlined, size: 20),
-                      label: const Text('Waze'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Address
+          Text(stop.address),
+
+          const SizedBox(height: 16),
+
+          // Navigation buttons
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: PrimaryButton(
+                    onPressed: () => _openNavigation(stop),
+                    leading: const Icon(Icons.navigation_outlined, size: 20),
+                    child: const Text('Google Maps'),
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlineButton(
+                    onPressed: () => _openWaze(stop),
+                    leading:
+                        const Icon(Icons.directions_car_outlined, size: 20),
+                    child: const Text('Waze'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildOrderCard(OrderInfo order) {
-    final theme = Theme.of(context);
-
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.inventory_2_outlined, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Detalles del Pedido',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 20),
+              const SizedBox(width: 8),
+              const Text('Detalles del Pedido').semiBold(),
+            ],
+          ),
+          const SizedBox(height: 16),
 
-            // Order details grid
-            Row(
-              children: [
-                if (order.units != null)
-                  _buildOrderDetail(
-                    Icons.widgets_outlined,
-                    '${order.units}',
-                    'Unidades',
-                  ),
-                if (order.weight != null)
-                  _buildOrderDetail(
-                    Icons.fitness_center_outlined,
-                    '${order.weight!.toStringAsFixed(1)} kg',
-                    'Peso',
-                  ),
-                if (order.value != null)
-                  _buildOrderDetail(
-                    Icons.attach_money,
-                    '\$${order.value!.toStringAsFixed(0)}',
-                    'Valor',
-                  ),
-              ],
-            ),
-          ],
-        ),
+          // Order details grid
+          Row(
+            children: [
+              if (order.units != null)
+                _buildOrderDetail(
+                  Icons.widgets_outlined,
+                  '${order.units}',
+                  'Unidades',
+                ),
+              if (order.weight != null)
+                _buildOrderDetail(
+                  Icons.fitness_center_outlined,
+                  '${order.weight!.toStringAsFixed(1)} kg',
+                  'Peso',
+                ),
+              if (order.value != null)
+                _buildOrderDetail(
+                  Icons.attach_money,
+                  '\$${order.value!.toStringAsFixed(0)}',
+                  'Valor',
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildOrderDetail(IconData icon, String value, String label) {
+    final theme = Theme.of(context);
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 24, color: AppColors.textSecondary),
+          Icon(icon, size: 24, color: theme.colorScheme.mutedForeground),
           const SizedBox(height: 4),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ],
       ),
@@ -509,9 +472,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.warningLight,
+        color: const Color(0xFFFFF7ED),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFEA580C).withValues(alpha:0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,38 +484,36 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
               const Icon(
                 Icons.info_outline,
                 size: 20,
-                color: AppColors.warning,
+                color: Color(0xFFEA580C),
               ),
               const SizedBox(width: 8),
               Text(
                 'Notas Importantes',
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.warning,
+                  color: const Color(0xFFEA580C),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            notes,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text(notes),
         ],
       ),
     );
   }
 
   Widget _buildActionBar(RouteStop stop) {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: theme.colorScheme.card,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -566,24 +527,15 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             SizedBox(
               width: double.infinity,
               height: 56,
-              child: ElevatedButton(
-                onPressed: _isProcessing ? null : () => _handleDeliveryAction(stop),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: stop.status.isInProgress
-                      ? AppColors.success
-                      : AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
+              child: PrimaryButton(
+                onPressed:
+                    _isProcessing ? null : () => _handleDeliveryAction(stop),
+                size: ButtonSize.large,
                 child: _isProcessing
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
+                    ? const CircularProgressIndicator(
+                        size: 24,
+                        strokeWidth: 2.5,
+                        color: Colors.white,
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -615,15 +567,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: OutlinedButton(
-                  onPressed: _isProcessing ? null : () => _handleFailure(stop),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+                child: DestructiveButton(
+                  onPressed:
+                      _isProcessing ? null : () => _handleFailure(stop),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -645,53 +591,44 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   Widget _buildCompletedBar(RouteStop stop) {
-    final theme = Theme.of(context);
-
     Color bgColor;
     String message;
     IconData icon;
+    Color iconColor;
 
     if (stop.status.isCompleted) {
-      bgColor = AppColors.successLight;
+      bgColor = StatusColors.completedBg;
       message = 'Entrega completada exitosamente';
       icon = Icons.check_circle;
+      iconColor = StatusColors.completed;
     } else if (stop.status.isFailed) {
-      bgColor = AppColors.errorLight;
+      bgColor = StatusColors.failedBg;
       final reason = FailureReason.fromString(stop.failureReason);
       message = 'No entregado: ${reason.label}';
       icon = Icons.cancel;
+      iconColor = StatusColors.failed;
     } else {
-      bgColor = AppColors.skippedBg;
+      bgColor = StatusColors.skippedBg;
       message = 'Parada omitida';
       icon = Icons.skip_next;
+      iconColor = StatusColors.skipped;
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-      ),
+      decoration: BoxDecoration(color: bgColor),
       child: SafeArea(
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: stop.status.isCompleted
-                  ? AppColors.success
-                  : stop.status.isFailed
-                      ? AppColors.error
-                      : AppColors.skipped,
-            ),
+            Icon(icon, color: iconColor),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
-            TextButton(
+            GhostButton(
               onPressed: () => context.pop(),
               child: const Text('Volver'),
             ),
@@ -738,7 +675,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     if (stop.status.isPending) {
       // Start the stop
       setState(() => _isProcessing = true);
-      final success = await ref.read(routeProvider.notifier).startStop(stop.id);
+      final success =
+          await ref.read(routeProvider.notifier).startStop(stop.id);
       setState(() => _isProcessing = false);
 
       if (!success && mounted) {
@@ -759,7 +697,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => DeliveryActionSheet(
         stop: stop,
-        onComplete: (photos, notes) => _completeDelivery(stop, photos, notes),
+        onComplete: (photos, notes) =>
+            _completeDelivery(stop, photos, notes),
       ),
     );
   }
@@ -807,7 +746,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   Future<void> _handleFailure(RouteStop stop) async {
-    final result = await showModalBottomSheet<({FailureReason reason, String? notes, List<File> photos})>(
+    final result = await showModalBottomSheet<
+        ({FailureReason reason, String? notes, List<File> photos})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -57,10 +57,17 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
 
   void _confirm() {
     if (_selectedReason == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, selecciona un motivo'),
-          backgroundColor: AppColors.error,
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Motivo requerido'),
+          content: const Text('Por favor, selecciona un motivo'),
+          actions: [
+            PrimaryButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
         ),
       );
       return;
@@ -69,10 +76,17 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
     // Require notes for "OTHER" reason
     if (_selectedReason == FailureReason.other &&
         _notesController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, especifica el motivo en las notas'),
-          backgroundColor: AppColors.error,
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Notas requeridas'),
+          content: const Text('Por favor, especifica el motivo en las notas'),
+          actions: [
+            PrimaryButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
         ),
       );
       return;
@@ -117,7 +131,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: theme.colorScheme.card,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -134,7 +148,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.border,
+                      color: theme.colorScheme.border,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -149,12 +163,12 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.errorLight,
+                        color: StatusColors.failedBg,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.cancel_rounded,
-                        color: AppColors.error,
+                        color: theme.colorScheme.destructive,
                         size: 24,
                       ),
                     ),
@@ -163,19 +177,8 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Reportar fallo',
-                            style: AppTypography.titleLarge.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            widget.stop.displayName,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
+                          const Text('Reportar fallo').semiBold().large(),
+                          Text(widget.stop.displayName).small().muted(),
                         ],
                       ),
                     ),
@@ -195,13 +198,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Reason selection label
-                  Text(
-                    'Motivo',
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  const Text('Motivo').semiBold().small(),
 
                   const SizedBox(height: 10),
 
@@ -220,12 +217,12 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.errorLight
-                                : AppColors.surfaceVariant,
+                                ? StatusColors.failedBg
+                                : theme.colorScheme.muted,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isSelected
-                                  ? AppColors.error
+                                  ? theme.colorScheme.destructive
                                   : Colors.transparent,
                               width: 1.5,
                             ),
@@ -237,21 +234,21 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                                 _reasonIcon(reason),
                                 size: 18,
                                 color: isSelected
-                                    ? AppColors.error
-                                    : AppColors.textSecondary,
+                                    ? theme.colorScheme.destructive
+                                    : theme.colorScheme.mutedForeground,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 reason.label,
-                                style: AppTypography.labelMedium.copyWith(
+                                style: TextStyle(
                                   fontWeight: isSelected
                                       ? FontWeight.w600
                                       : FontWeight.w500,
                                   color: isSelected
-                                      ? AppColors.error
-                                      : AppColors.textPrimary,
+                                      ? theme.colorScheme.destructive
+                                      : theme.colorScheme.foreground,
                                 ),
-                              ),
+                              ).small(),
                             ],
                           ),
                         ),
@@ -266,29 +263,12 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                     _selectedReason == FailureReason.other
                         ? 'Especifica el motivo'
                         : 'Notas adicionales (opcional)',
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  ).semiBold().small(),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _notesController,
                     maxLines: 2,
-                    style: AppTypography.bodyMedium,
-                    decoration: InputDecoration(
-                      hintText: 'Agrega mas detalles...',
-                      filled: true,
-                      fillColor: AppColors.surfaceVariant,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
+                    placeholder: const Text('Agrega mas detalles...'),
                   ),
 
                   const SizedBox(height: 20),
@@ -296,30 +276,10 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                   // Photo evidence (optional)
                   Row(
                     children: [
-                      Text(
-                        'Foto de evidencia',
-                        style: AppTypography.titleSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
+                      const Text('Foto de evidencia').semiBold().small(),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Opcional',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.textTertiary,
-                            fontSize: 10,
-                          ),
-                        ),
+                      OutlineBadge(
+                        child: const Text('Opcional').xSmall(),
                       ),
                     ],
                   ),
@@ -333,31 +293,23 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                         itemCount: _photos.length + 1,
                         itemBuilder: (context, index) {
                           if (index == _photos.length) {
-                            return _buildAddPhotoButton();
+                            return _buildAddPhotoButton(theme);
                           }
                           return _buildPhotoThumbnail(index);
                         },
                       ),
                     ),
                   ] else ...[
-                    OutlinedButton.icon(
+                    OutlineButton(
                       onPressed: _takePhoto,
-                      icon: _isCapturing
+                      leading: _isCapturing
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.camera_alt_outlined, size: 18),
-                      label: const Text('Tomar foto'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        side: const BorderSide(color: AppColors.border),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
+                      child: const Text('Tomar foto'),
                     ),
                   ],
 
@@ -370,9 +322,9 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
           // Fixed action buttons at bottom
           Container(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
-                top: BorderSide(color: AppColors.border),
+                top: BorderSide(color: theme.colorScheme.border),
               ),
             ),
             child: SafeArea(
@@ -382,37 +334,22 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                 children: [
                   SizedBox(
                     height: 52,
-                    child: ElevatedButton(
+                    child: DestructiveButton(
                       onPressed: _selectedReason == null ? null : _confirm,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.error,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.surfaceVariant,
-                        disabledForegroundColor: AppColors.textTertiary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
                       child: Text(
                         'Confirmar',
-                        style: AppTypography.labelLarge.copyWith(
-                          fontWeight: FontWeight.w600,
+                        style: TextStyle(
                           color: _selectedReason == null
-                              ? AppColors.textTertiary
+                              ? theme.colorScheme.mutedForeground
                               : Colors.white,
                         ),
-                      ),
+                      ).semiBold(),
                     ),
                   ),
                   Center(
-                    child: TextButton(
+                    child: GhostButton(
                       onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancelar',
-                        style: AppTypography.labelLarge.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
+                      child: const Text('Cancelar').muted(),
                     ),
                   ),
                 ],
@@ -447,7 +384,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: AppColors.error,
+                  color: StatusColors.failed,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -464,16 +401,16 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
     );
   }
 
-  Widget _buildAddPhotoButton() {
+  Widget _buildAddPhotoButton(ThemeData theme) {
     return GestureDetector(
       onTap: _takePhoto,
       child: Container(
         width: 72,
         height: 72,
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: theme.colorScheme.muted,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: theme.colorScheme.border),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -481,16 +418,10 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
             Icon(
               Icons.add_a_photo_outlined,
               size: 20,
-              color: AppColors.textSecondary,
+              color: theme.colorScheme.mutedForeground,
             ),
             const SizedBox(height: 2),
-            Text(
-              'Agregar',
-              style: AppTypography.labelSmall.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-              ),
-            ),
+            Text('Agregar').xSmall().muted(),
           ],
         ),
       ),

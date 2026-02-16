@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -61,10 +61,18 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
 
   void _confirmDelivery() {
     if (_photos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, toma al menos una foto como evidencia'),
-          backgroundColor: AppColors.error,
+      // Show toast via snackbar-like approach
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Foto requerida'),
+          content: const Text('Por favor, toma al menos una foto como evidencia'),
+          actions: [
+            PrimaryButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
         ),
       );
       return;
@@ -84,7 +92,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
     return Container(
       padding: EdgeInsets.only(bottom: bottomPadding),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: theme.colorScheme.card,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
@@ -101,7 +109,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.border,
+                      color: theme.colorScheme.border,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -116,12 +124,12 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.successLight,
+                        color: StatusColors.completedBg,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.success,
+                        color: StatusColors.completed,
                         size: 24,
                       ),
                     ),
@@ -130,19 +138,8 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Confirmar entrega',
-                            style: AppTypography.titleLarge.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            widget.stop.displayName,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
+                          const Text('Confirmar entrega').semiBold().large(),
+                          Text(widget.stop.displayName).small().muted(),
                         ],
                       ),
                     ),
@@ -152,13 +149,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                 const SizedBox(height: 24),
 
                 // Photo section label
-                Text(
-                  'Foto de evidencia',
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                const Text('Foto de evidencia').semiBold().small(),
                 const SizedBox(height: 10),
 
                 // Photos grid or camera button
@@ -170,7 +161,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                       itemCount: _photos.length + 1,
                       itemBuilder: (context, index) {
                         if (index == _photos.length) {
-                          return _buildAddPhotoButton();
+                          return _buildAddPhotoButton(theme);
                         }
                         return _buildPhotoThumbnail(index);
                       },
@@ -182,9 +173,9 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                     child: Container(
                       height: 88,
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
+                        color: theme.colorScheme.muted,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: theme.colorScheme.border),
                       ),
                       child: _isCapturing
                           ? const Center(
@@ -200,16 +191,15 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                                 Icon(
                                   Icons.camera_alt_rounded,
                                   size: 22,
-                                  color: AppColors.primary,
+                                  color: theme.colorScheme.primary,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Tomar foto',
-                                  style: AppTypography.labelLarge.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.primary,
                                   ),
-                                ),
+                                ).semiBold(),
                               ],
                             ),
                     ),
@@ -219,31 +209,12 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                 const SizedBox(height: 20),
 
                 // Notes field
-                Text(
-                  'Notas (opcional)',
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                const Text('Notas (opcional)').semiBold().small(),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _notesController,
                   maxLines: 2,
-                  style: AppTypography.bodyMedium,
-                  decoration: InputDecoration(
-                    hintText: 'Agrega notas sobre la entrega...',
-                    filled: true,
-                    fillColor: AppColors.surfaceVariant,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                  ),
+                  placeholder: const Text('Agrega notas sobre la entrega...'),
                 ),
 
                 const SizedBox(height: 24),
@@ -251,28 +222,18 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                 // Confirm button
                 SizedBox(
                   height: 52,
-                  child: ElevatedButton(
+                  child: PrimaryButton(
                     onPressed: _photos.isEmpty ? null : _confirmDelivery,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.surfaceVariant,
-                      disabledForegroundColor: AppColors.textTertiary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
                     child: Text(
                       _photos.isEmpty
                           ? 'Toma una foto primero'
                           : 'Confirmar entrega',
-                      style: AppTypography.labelLarge.copyWith(
-                        fontWeight: FontWeight.w600,
+                      style: TextStyle(
                         color: _photos.isEmpty
-                            ? AppColors.textTertiary
-                            : Colors.white,
+                            ? theme.colorScheme.mutedForeground
+                            : theme.colorScheme.primaryForeground,
                       ),
-                    ),
+                    ).semiBold(),
                   ),
                 ),
 
@@ -280,14 +241,9 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
 
                 // Cancel link
                 Center(
-                  child: TextButton(
+                  child: GhostButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancelar',
-                      style: AppTypography.labelLarge.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
+                    child: const Text('Cancelar').muted(),
                   ),
                 ),
               ],
@@ -321,7 +277,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: AppColors.error,
+                  color: StatusColors.failed,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
@@ -338,16 +294,16 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
     );
   }
 
-  Widget _buildAddPhotoButton() {
+  Widget _buildAddPhotoButton(ThemeData theme) {
     return GestureDetector(
       onTap: _takePhoto,
       child: Container(
         width: 88,
         height: 88,
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: theme.colorScheme.muted,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: theme.colorScheme.border),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -355,15 +311,10 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
             Icon(
               Icons.add_a_photo_outlined,
               size: 22,
-              color: AppColors.textSecondary,
+              color: theme.colorScheme.mutedForeground,
             ),
             const SizedBox(height: 4),
-            Text(
-              'Agregar',
-              style: AppTypography.labelSmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+            Text('Agregar').xSmall().muted(),
           ],
         ),
       ),

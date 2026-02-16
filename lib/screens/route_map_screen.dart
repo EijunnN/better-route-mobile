@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,25 +24,28 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     final routeState = ref.watch(routeProvider);
     final locationState = ref.watch(locationProvider);
     final stops = routeState.stops;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Mapa de ruta'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        actions: [
-          if (stops.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.fit_screen),
-              tooltip: 'Ver toda la ruta',
-              onPressed: () => _fitBounds(stops),
+      headers: [
+        AppBar(
+          title: const Text('Mapa de ruta'),
+          leading: [
+            IconButton.ghost(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
             ),
-        ],
-      ),
-      body: stops.isEmpty
+          ],
+          trailing: [
+            if (stops.isNotEmpty)
+              IconButton.ghost(
+                icon: const Icon(Icons.fit_screen),
+                onPressed: () => _fitBounds(stops),
+              ),
+          ],
+        ),
+      ],
+      child: stops.isEmpty
           ? _buildEmptyState()
           : Stack(
               children: [
@@ -50,14 +53,17 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _getInitialCenter(stops, locationState),
+                    initialCenter:
+                        _getInitialCenter(stops, locationState),
                     initialZoom: 13,
-                    onTap: (_, _) => setState(() => _selectedStopId = null),
+                    onTap: (_, _) =>
+                        setState(() => _selectedStopId = null),
                   ),
                   children: [
                     // OpenStreetMap tiles
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.betterroute.aea',
                     ),
 
@@ -67,9 +73,11 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                         polylines: [
                           Polyline(
                             points: stops
-                                .map((s) => LatLng(s.latitude, s.longitude))
+                                .map((s) =>
+                                    LatLng(s.latitude, s.longitude))
                                 .toList(),
-                            color: AppColors.primary.withValues(alpha:0.6),
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.6),
                             strokeWidth: 3,
                           ),
                         ],
@@ -77,7 +85,9 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
 
                     // Stop markers
                     MarkerLayer(
-                      markers: stops.map((stop) => _buildStopMarker(stop)).toList(),
+                      markers: stops
+                          .map((stop) => _buildStopMarker(stop))
+                          .toList(),
                     ),
 
                     // Driver current location
@@ -93,12 +103,14 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                             height: 32,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: AppColors.info,
+                                color: theme.colorScheme.secondary,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
+                                border: Border.all(
+                                    color: Colors.white, width: 3),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColors.info.withValues(alpha:0.4),
+                                    color: theme.colorScheme.secondary
+                                        .withValues(alpha: 0.4),
                                     blurRadius: 8,
                                     spreadRadius: 2,
                                   ),
@@ -151,12 +163,23 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(
-              color: isSelected ? Colors.white : Colors.white.withValues(alpha:0.9),
+              color: isSelected
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.9),
               width: isSelected ? 3 : 2,
             ),
             boxShadow: isSelected
-                ? [BoxShadow(color: color.withValues(alpha:0.5), blurRadius: 8, spreadRadius: 1)]
-                : [BoxShadow(color: Colors.black.withValues(alpha:0.2), blurRadius: 4)],
+                ? [
+                    BoxShadow(
+                        color: color.withValues(alpha: 0.5),
+                        blurRadius: 8,
+                        spreadRadius: 1)
+                  ]
+                : [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4)
+                  ],
           ),
           child: Center(
             child: Text(
@@ -180,155 +203,141 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     );
     final statusColor = _getStatusColor(stop.status);
     final statusLabel = _getStatusLabel(stop.status);
+    final theme = Theme.of(context);
 
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header: sequence + name + status
-            Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${stop.sequence}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stop.displayName,
-                        style: AppTypography.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (stop.order?.trackingId != null)
-                        Text(
-                          stop.order!.trackingId!,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha:0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: AppTypography.labelSmall.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // Address
-            Row(
-              children: [
-                Icon(Icons.location_on_outlined, size: 16, color: AppColors.textTertiary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    stop.address,
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => context.push(AppRoutes.stopDetailPath(stop.id)),
-                    icon: const Icon(Icons.info_outline, size: 18),
-                    label: const Text('Ver detalle'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ref.read(locationProvider.notifier).navigateTo(
-                            stop.latitude,
-                            stop.longitude,
-                          );
-                    },
-                    icon: const Icon(Icons.navigation, size: 18),
-                    label: const Text('Navegar'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
+      padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.map_outlined, size: 64, color: AppColors.textTertiary),
-          const SizedBox(height: 16),
-          Text(
-            'Sin paradas para mostrar',
-            style: AppTypography.titleMedium.copyWith(color: AppColors.textSecondary),
+          // Header: sequence + name + status
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '${stop.sequence}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stop.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ).semiBold(),
+                    if (stop.order?.trackingId != null)
+                      Text(
+                        stop.order!.trackingId!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              SecondaryBadge(
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Address
+          Row(
+            children: [
+              Icon(Icons.location_on_outlined,
+                  size: 16, color: theme.colorScheme.mutedForeground),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  stop.address,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlineButton(
+                  onPressed: () =>
+                      context.push(AppRoutes.stopDetailPath(stop.id)),
+                  leading: const Icon(Icons.info_outline, size: 18),
+                  child: const Text('Ver detalle'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: PrimaryButton(
+                  onPressed: () {
+                    ref.read(locationProvider.notifier).navigateTo(
+                          stop.latitude,
+                          stop.longitude,
+                        );
+                  },
+                  leading: const Icon(Icons.navigation, size: 18),
+                  child: const Text('Navegar'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  LatLng _getInitialCenter(List<RouteStop> stops, LocationState locationState) {
+  Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.map_outlined,
+              size: 64, color: theme.colorScheme.mutedForeground),
+          const SizedBox(height: 16),
+          const Text('Sin paradas para mostrar').muted(),
+        ],
+      ),
+    );
+  }
+
+  LatLng _getInitialCenter(
+      List<RouteStop> stops, LocationState locationState) {
     if (locationState.currentLocation != null) {
       return LatLng(
         locationState.currentLocation!.latitude,
@@ -343,7 +352,8 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
 
   void _fitBounds(List<RouteStop> stops) {
     if (stops.isEmpty) return;
-    final points = stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
+    final points =
+        stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
 
     // Add current location to bounds
     final locationState = ref.read(locationProvider);
@@ -366,15 +376,15 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
   Color _getStatusColor(StopStatus status) {
     switch (status) {
       case StopStatus.completed:
-        return AppColors.completed;
+        return StatusColors.completed;
       case StopStatus.failed:
-        return AppColors.failed;
+        return StatusColors.failed;
       case StopStatus.skipped:
-        return AppColors.skipped;
+        return StatusColors.skipped;
       case StopStatus.inProgress:
-        return AppColors.inProgress;
+        return StatusColors.inProgress;
       case StopStatus.pending:
-        return AppColors.pending;
+        return StatusColors.pending;
     }
   }
 

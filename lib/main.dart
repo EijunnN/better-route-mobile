@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'core/theme.dart';
 import 'router/router.dart';
 
@@ -38,16 +38,12 @@ class EntregasApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
-    return MaterialApp.router(
-      title: 'Entregas',
+    return ShadcnApp.router(
+      title: 'BetterRoute',
       debugShowCheckedModeBanner: false,
-
-      // Theme
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.light, // Force light mode for now
-
-      // Routing
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

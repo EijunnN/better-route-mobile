@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -61,9 +60,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
+      child: Center(
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
@@ -79,7 +79,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       width: 88,
                       height: 88,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: theme.colorScheme.primary,
                         borderRadius: BorderRadius.circular(22),
                       ),
                       child: const Icon(
@@ -90,37 +90,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     ),
                     const SizedBox(height: 28),
                     // App name
-                    const Text(
+                    Text(
                       'BetterRoute',
                       style: TextStyle(
-                        fontFamily: 'Inter',
                         fontSize: 32,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                        color: theme.colorScheme.primary,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Plataforma de entregas',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
+                    const Text('Plataforma de entregas').muted(),
                     const SizedBox(height: 48),
                     // Loading indicator
-                    const SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
+                    CircularProgressIndicator(
+                      size: 28,
+                      strokeWidth: 2.5,
+                      color: theme.colorScheme.primary,
                     ),
                   ],
                 ),

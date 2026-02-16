@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import '../core/theme.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../models/models.dart';
 
 class DriverHeader extends StatelessWidget {
@@ -16,12 +15,14 @@ class DriverHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: const Border(
-          bottom: BorderSide(color: AppColors.border),
+        color: theme.colorScheme.card,
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.border),
         ),
       ),
       child: Row(
@@ -30,8 +31,8 @@ class DriverHeader extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
               shape: BoxShape.circle,
             ),
             child: driver?.photo != null
@@ -41,10 +42,10 @@ class DriverHeader extends StatelessWidget {
                       fit: BoxFit.cover,
                       width: 36,
                       height: 36,
-                      errorBuilder: (_, __, ___) => _buildInitials(),
+                      errorBuilder: (_, __, ___) => _buildInitials(theme),
                     ),
                   )
-                : _buildInitials(),
+                : _buildInitials(theme),
           ),
 
           const SizedBox(width: 10),
@@ -56,36 +57,16 @@ class DriverHeader extends StatelessWidget {
                 Flexible(
                   child: Text(
                     driver?.name ?? 'Conductor',
-                    style: AppTypography.titleSmall.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                  ),
+                  ).semiBold(),
                 ),
 
-                // Vehicle plate chip
+                // Vehicle plate badge
                 if (vehicle != null) ...[
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      vehicle!.displayName,
-                      style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  OutlineBadge(
+                    child: Text(vehicle!.displayName).xSmall(),
                   ),
                 ],
               ],
@@ -93,26 +74,27 @@ class DriverHeader extends StatelessWidget {
           ),
 
           // Logout button
-          IconButton(
+          GhostButton(
+            size: ButtonSize.small,
+            density: ButtonDensity.compact,
             onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded, size: 20),
-            color: AppColors.textSecondary,
-            tooltip: 'Cerrar sesion',
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            child: Icon(
+              Icons.logout_rounded,
+              size: 20,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInitials() {
+  Widget _buildInitials(ThemeData theme) {
     return Center(
       child: Text(
         driver?.initials ?? '?',
-        style: const TextStyle(
-          color: AppColors.textOnPrimary,
+        style: TextStyle(
+          color: theme.colorScheme.primaryForeground,
           fontWeight: FontWeight.w600,
           fontSize: 14,
         ),

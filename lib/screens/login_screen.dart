@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -12,13 +11,13 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
-  bool _obscurePassword = true;
+  String? _emailError;
+  String? _passwordError;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -63,8 +62,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
+  bool _validate() {
+    bool valid = true;
+    setState(() {
+      final email = _emailController.text.trim();
+      if (email.isEmpty) {
+        _emailError = 'Ingresa tu correo';
+        valid = false;
+      } else if (!email.contains('@')) {
+        _emailError = 'Ingresa un correo valido';
+        valid = false;
+      } else {
+        _emailError = null;
+      }
+
+      if (_passwordController.text.isEmpty) {
+        _passwordError = 'Ingresa tu contrasena';
+        valid = false;
+      } else {
+        _passwordError = null;
+      }
+    });
+    return valid;
+  }
+
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_validate()) return;
 
     // Hide keyboard
     FocusScope.of(context).unfocus();
@@ -81,8 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+      child: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: SlideTransition(
@@ -104,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              color: theme.colorScheme.primary,
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: const Icon(
@@ -116,18 +138,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           const SizedBox(height: 20),
                           Text(
                             'BetterRoute',
-                            style: theme.textTheme.headlineLarge?.copyWith(
+                            style: TextStyle(
+                              fontSize: 28,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
+                              color: theme.colorScheme.primary,
+                              letterSpacing: -0.5,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'Inicia sesion para continuar',
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
+                          const Text('Inicia sesion para continuar').muted(),
                         ],
                       ),
                     ),
@@ -135,141 +154,118 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const SizedBox(height: 40),
 
                     // Form card
-                    Container(
+                    Card(
                       padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Email field
-                            _buildLabel('Correo electronico'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _emailController,
-                              focusNode: _emailFocus,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              enabled: !authState.isLoading,
-                              onFieldSubmitted: (_) {
-                                _passwordFocus.requestFocus();
-                              },
-                              decoration: const InputDecoration(
-                                hintText: 'correo@ejemplo.com',
-                                prefixIcon: Icon(Icons.email_outlined),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Ingresa tu correo';
-                                }
-                                if (!value.contains('@')) {
-                                  return 'Ingresa un correo valido';
-                                }
-                                return null;
-                              },
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // Password field
-                            _buildLabel('Contrasena'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _passwordController,
-                              focusNode: _passwordFocus,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.done,
-                              enabled: !authState.isLoading,
-                              onFieldSubmitted: (_) => _login(),
-                              decoration: InputDecoration(
-                                hintText: 'Tu contrasena',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: AppColors.textTertiary,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Ingresa tu contrasena';
-                                }
-                                return null;
-                              },
-                            ),
-
-                            // Error message
-                            if (authState.error != null) ...[
-                              const SizedBox(height: 16),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.errorLight,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      color: AppColors.error,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        authState.error!,
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: AppColors.error,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-
-                            const SizedBox(height: 24),
-
-                            // Login button
-                            SizedBox(
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: authState.isLoading ? null : _login,
-                                child: authState.isLoading
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            Colors.white,
-                                          ),
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Iniciar sesion',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Email field
+                          const Text('Correo electronico').semiBold().small(),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _emailController,
+                            focusNode: _emailFocus,
+                            keyboardType: TextInputType.emailAddress,
+                            enabled: !authState.isLoading,
+                            placeholder: const Text('correo@ejemplo.com'),
+                            onSubmitted: (_) {
+                              _passwordFocus.requestFocus();
+                            },
+                          ),
+                          if (_emailError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _emailError!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.destructive,
                               ),
                             ),
                           ],
-                        ),
+
+                          const SizedBox(height: 20),
+
+                          // Password field
+                          const Text('Contrasena').semiBold().small(),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _passwordController,
+                            focusNode: _passwordFocus,
+                            obscureText: true,
+                            enabled: !authState.isLoading,
+                            placeholder: const Text('Tu contrasena'),
+                            onSubmitted: (_) => _login(),
+                            features: const [
+                              InputFeature.passwordToggle(),
+                            ],
+                          ),
+                          if (_passwordError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _passwordError!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.destructive,
+                              ),
+                            ),
+                          ],
+
+                          // Error message
+                          if (authState.error != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.destructive
+                                    .withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: theme.colorScheme.destructive,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      authState.error!,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: theme.colorScheme.destructive,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 24),
+
+                          // Login button
+                          SizedBox(
+                            height: 56,
+                            child: PrimaryButton(
+                              onPressed: authState.isLoading ? null : _login,
+                              size: ButtonSize.large,
+                              child: authState.isLoading
+                                  ? const CircularProgressIndicator(
+                                      size: 24,
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    )
+                                  : const Text(
+                                      'Iniciar sesion',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -277,12 +273,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                     // Footer
                     Center(
-                      child: Text(
-                        'App exclusiva para conductores',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
+                      child: const Text('App exclusiva para conductores')
+                          .muted()
+                          .small(),
                     ),
 
                     const SizedBox(height: 24),
@@ -292,17 +285,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textPrimary,
       ),
     );
   }

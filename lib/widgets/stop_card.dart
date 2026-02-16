@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -38,15 +38,8 @@ class StopCard extends ConsumerWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppColors.border,
-            width: 1,
-          ),
-        ),
+      child: Card(
+        padding: EdgeInsets.zero,
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -58,7 +51,7 @@ class StopCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: statusColor,
                     borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(14),
+                      left: Radius.circular(10),
                     ),
                   ),
                 ),
@@ -78,15 +71,16 @@ class StopCard extends ConsumerWidget {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.12),
+                              color: statusColor.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: Text(
                                 '${stop.sequence}',
-                                style: AppTypography.labelMedium.copyWith(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: statusColor,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
@@ -100,24 +94,23 @@ class StopCard extends ConsumerWidget {
                               children: [
                                 Text(
                                   stop.displayName,
-                                  style: AppTypography.titleSmall.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: isDone
-                                        ? AppColors.textSecondary
-                                        : AppColors.textPrimary,
-                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                ),
+                                  style: TextStyle(
+                                    color: isDone
+                                        ? theme.colorScheme.mutedForeground
+                                        : theme.colorScheme.foreground,
+                                  ),
+                                ).semiBold(),
                                 const SizedBox(height: 1),
                                 Text(
                                   stop.trackingDisplay,
-                                  style: AppTypography.labelSmall.copyWith(
-                                    color: AppColors.textTertiary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
                                     fontFamily: 'monospace',
-                                    fontSize: 10,
                                   ),
-                                ),
+                                ).xSmall().muted(),
                               ],
                             ),
                           ),
@@ -133,7 +126,7 @@ class StopCard extends ConsumerWidget {
                           Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
-                            color: AppColors.textTertiary,
+                            color: theme.colorScheme.mutedForeground,
                           ),
                         ],
                       ),
@@ -146,18 +139,15 @@ class StopCard extends ConsumerWidget {
                           Icon(
                             Icons.location_on_outlined,
                             size: 14,
-                            color: AppColors.textTertiary,
+                            color: theme.colorScheme.mutedForeground,
                           ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               stop.address,
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                            ),
+                            ).small().muted(),
                           ),
                         ],
                       ),
@@ -172,7 +162,7 @@ class StopCard extends ConsumerWidget {
                               _InfoChip(
                                 icon: Icons.schedule_outlined,
                                 text: stop.arrivalTimeDisplay,
-                                color: AppColors.textSecondary,
+                                color: theme.colorScheme.mutedForeground,
                               ),
 
                             // Time window
@@ -182,7 +172,7 @@ class StopCard extends ConsumerWidget {
                               _InfoChip(
                                 icon: Icons.access_time_outlined,
                                 text: stop.timeWindow!.displayText,
-                                color: AppColors.warning,
+                                color: StatusColors.inProgress,
                               ),
                             ],
 
@@ -193,7 +183,7 @@ class StopCard extends ConsumerWidget {
                               _InfoChip(
                                 icon: Icons.navigation_outlined,
                                 text: distanceText,
-                                color: AppColors.primary,
+                                color: theme.colorScheme.primary,
                                 bold: true,
                               ),
                           ],
@@ -210,15 +200,13 @@ class StopCard extends ConsumerWidget {
                             Icon(
                               Icons.sticky_note_2_outlined,
                               size: 12,
-                              color: AppColors.warning,
+                              color: StatusColors.inProgress,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               'Tiene notas',
-                              style: AppTypography.labelSmall.copyWith(
-                                color: AppColors.warning,
-                              ),
-                            ),
+                              style: TextStyle(color: StatusColors.inProgress),
+                            ).xSmall(),
                           ],
                         ),
                       ],
@@ -240,15 +228,15 @@ class StopCard extends ConsumerWidget {
   Color _getStatusColor() {
     switch (stop.status) {
       case StopStatus.pending:
-        return AppColors.pending;
+        return StatusColors.pending;
       case StopStatus.inProgress:
-        return AppColors.primary;
+        return StatusColors.inProgress;
       case StopStatus.completed:
-        return AppColors.completed;
+        return StatusColors.completed;
       case StopStatus.failed:
-        return AppColors.failed;
+        return StatusColors.failed;
       case StopStatus.skipped:
-        return AppColors.skipped;
+        return StatusColors.skipped;
     }
   }
 }
@@ -275,11 +263,11 @@ class _InfoChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           text,
-          style: AppTypography.labelSmall.copyWith(
+          style: TextStyle(
             color: color,
             fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
           ),
-        ),
+        ).xSmall(),
       ],
     );
   }
@@ -298,24 +286,24 @@ class _StatusBadge extends StatelessWidget {
 
     switch (status) {
       case StopStatus.pending:
-        bgColor = AppColors.pendingBg;
-        textColor = AppColors.pending;
+        bgColor = StatusColors.pendingBg;
+        textColor = StatusColors.pending;
         text = 'Pendiente';
       case StopStatus.inProgress:
-        bgColor = AppColors.inProgressBg;
-        textColor = AppColors.inProgress;
+        bgColor = StatusColors.inProgressBg;
+        textColor = StatusColors.inProgress;
         text = 'En curso';
       case StopStatus.completed:
-        bgColor = AppColors.completedBg;
-        textColor = AppColors.completed;
+        bgColor = StatusColors.completedBg;
+        textColor = StatusColors.completed;
         text = 'Entregado';
       case StopStatus.failed:
-        bgColor = AppColors.failedBg;
-        textColor = AppColors.failed;
+        bgColor = StatusColors.failedBg;
+        textColor = StatusColors.failed;
         text = 'Fallido';
       case StopStatus.skipped:
-        bgColor = AppColors.skippedBg;
-        textColor = AppColors.skipped;
+        bgColor = StatusColors.skippedBg;
+        textColor = StatusColors.skipped;
         text = 'Omitido';
     }
 
@@ -327,12 +315,8 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: AppTypography.labelSmall.copyWith(
-          fontWeight: FontWeight.w600,
-          color: textColor,
-          fontSize: 10,
-        ),
-      ),
+        style: TextStyle(color: textColor),
+      ).xSmall().semiBold(),
     );
   }
 }
