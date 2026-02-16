@@ -26,7 +26,8 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     final stops = routeState.stops;
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return SafeArea(
+      child: Scaffold(
       headers: [
         AppBar(
           title: const Text('Mapa de ruta'),
@@ -138,6 +139,7 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                   ),
               ],
             ),
+    ),
     );
   }
 

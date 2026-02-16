@@ -41,7 +41,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       );
     }
 
-    return Scaffold(
+    return SafeArea(
+      child: Scaffold(
       headers: [
         AppBar(
           leading: [
@@ -97,6 +98,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           const SizedBox(height: 16),
         ],
       ),
+    ),
     );
   }
 

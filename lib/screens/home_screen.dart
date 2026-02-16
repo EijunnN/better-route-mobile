@@ -76,7 +76,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final routeState = ref.watch(routeProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return SafeArea(
+      child: Scaffold(
       floatingHeader: false,
       headers: [
         // Driver info header
@@ -172,6 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
         ],
       ),
+    ),
     );
   }
 
