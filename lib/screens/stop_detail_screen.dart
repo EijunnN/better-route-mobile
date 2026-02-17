@@ -319,7 +319,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: StatusColors.completedBg,
+                        color: StatusColors.completedBackground(theme.brightness),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -535,22 +535,26 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   Widget _buildNotesCard(String notes) {
+    final brightness = Theme.of(context).brightness;
+    final notesBg = StatusColors.notesBackground(brightness);
+    final notesAccent = StatusColors.notesAccentColor(brightness);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: notesBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEA580C).withValues(alpha:0.3)),
+        border: Border.all(color: notesAccent.withValues(alpha:0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.info_outline,
                 size: 20,
-                color: Color(0xFFEA580C),
+                color: notesAccent,
               ),
               const SizedBox(width: 8),
               Text(
@@ -558,7 +562,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFFEA580C),
+                  color: notesAccent,
                 ),
               ),
             ],
@@ -676,10 +680,10 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
         return PrimaryButton(
           onPressed: null,
           size: ButtonSize.large,
-          child: const CircularProgressIndicator(
+          child: CircularProgressIndicator(
             size: 24,
             strokeWidth: 2.5,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.primaryForeground,
           ),
         );
       } else {
@@ -888,10 +892,10 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                     _isProcessing ? null : () => _handleDeliveryAction(stop),
                 size: ButtonSize.large,
                 child: _isProcessing
-                    ? const CircularProgressIndicator(
+                    ? CircularProgressIndicator(
                         size: 24,
                         strokeWidth: 2.5,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primaryForeground,
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -996,18 +1000,21 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       message = stop.workflowStateLabel!;
       icon = _iconForSystemState(stop.status.value);
     } else if (stop.status.isCompleted) {
-      bgColor = StatusColors.completedBg;
+      final brightness = Theme.of(context).brightness;
+      bgColor = StatusColors.completedBackground(brightness);
       message = 'Entrega completada exitosamente';
       icon = Icons.check_circle;
       iconColor = StatusColors.completed;
     } else if (stop.status.isFailed) {
-      bgColor = StatusColors.failedBg;
+      final brightness = Theme.of(context).brightness;
+      bgColor = StatusColors.failedBackground(brightness);
       final reason = FailureReason.fromString(stop.failureReason);
       message = 'No entregado: ${reason.label}';
       icon = Icons.cancel;
       iconColor = StatusColors.failed;
     } else {
-      bgColor = StatusColors.skippedBg;
+      final brightness = Theme.of(context).brightness;
+      bgColor = StatusColors.skippedBackground(brightness);
       message = 'Parada omitida';
       icon = Icons.skip_next;
       iconColor = StatusColors.skipped;
@@ -1517,7 +1524,7 @@ class _WorkflowTransitionSheetState extends State<_WorkflowTransitionSheet> {
                               'Confirmar',
                               style: TextStyle(
                                 color: _canConfirm
-                                    ? Colors.white
+                                    ? null
                                     : theme.colorScheme.mutedForeground,
                               ),
                             ).semiBold(),

@@ -297,6 +297,7 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
     Color bgColor;
     Color textColor;
     String text;
@@ -310,23 +311,23 @@ class _StatusBadge extends StatelessWidget {
     } else {
       switch (status) {
         case StopStatus.pending:
-          bgColor = StatusColors.pendingBg;
+          bgColor = StatusColors.pendingBackground(brightness);
           textColor = StatusColors.pending;
           text = 'Pendiente';
         case StopStatus.inProgress:
-          bgColor = StatusColors.inProgressBg;
+          bgColor = StatusColors.inProgressBackground(brightness);
           textColor = StatusColors.inProgress;
           text = 'En curso';
         case StopStatus.completed:
-          bgColor = StatusColors.completedBg;
+          bgColor = StatusColors.completedBackground(brightness);
           textColor = StatusColors.completed;
           text = 'Entregado';
         case StopStatus.failed:
-          bgColor = StatusColors.failedBg;
+          bgColor = StatusColors.failedBackground(brightness);
           textColor = StatusColors.failed;
           text = 'Fallido';
         case StopStatus.skipped:
-          bgColor = StatusColors.skippedBg;
+          bgColor = StatusColors.skippedBackground(brightness);
           textColor = StatusColors.skipped;
           text = 'Omitido';
       }

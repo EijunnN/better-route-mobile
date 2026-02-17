@@ -101,7 +101,7 @@ class TrackingService {
       'longitude': location.longitude,
       'accuracy': location.accuracy.round(),
       'speed': (location.speed * 3.6).round(), // Convert m/s to km/h
-      'recordedAt': location.timestamp.toIso8601String(),
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'source': 'GPS',
       if (batteryLevel != null) 'batteryLevel': batteryLevel,
     };
@@ -201,7 +201,7 @@ class TrackingService {
       'longitude': _locationService.lastLocation!.longitude,
       'accuracy': _locationService.lastLocation!.accuracy.round(),
       'speed': (_locationService.lastLocation!.speed * 3.6).round(),
-      'recordedAt': _locationService.lastLocation!.timestamp.toIso8601String(),
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'source': 'GPS',
       if (batteryLevel != null) 'batteryLevel': batteryLevel,
     };

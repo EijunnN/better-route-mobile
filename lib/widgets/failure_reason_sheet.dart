@@ -163,7 +163,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: StatusColors.failedBg,
+                        color: StatusColors.failedBackground(theme.brightness),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -217,7 +217,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? StatusColors.failedBg
+                                ? StatusColors.failedBackground(theme.brightness)
                                 : theme.colorScheme.muted,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
@@ -341,7 +341,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                         style: TextStyle(
                           color: _selectedReason == null
                               ? theme.colorScheme.mutedForeground
-                              : Colors.white,
+                              : null,
                         ),
                       ).semiBold(),
                     ),

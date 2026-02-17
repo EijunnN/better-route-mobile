@@ -82,10 +82,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         color: theme.colorScheme.primary,
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.local_shipping_rounded,
                         size: 48,
-                        color: Colors.white,
+                        color: theme.colorScheme.primaryForeground,
                       ),
                     ),
                     const SizedBox(height: 28),

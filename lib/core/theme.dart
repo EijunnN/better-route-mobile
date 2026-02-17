@@ -80,16 +80,44 @@ class AppTheme {
 class StatusColors {
   static const Color pending = Color(0xFF6E7094);
   static const Color pendingBg = Color(0xFFF5F4F8);
+  static const Color pendingBgDark = Color(0xFF2A2A3A);
 
   static const Color inProgress = Color(0xFFC49A2D);
   static const Color inProgressBg = Color(0xFFFFF8E6);
+  static const Color inProgressBgDark = Color(0xFF3A3020);
 
   static const Color completed = Color(0xFF16A34A);
   static const Color completedBg = Color(0xFFDCFCE7);
+  static const Color completedBgDark = Color(0xFF1A3A24);
 
   static const Color failed = Color(0xFFDC4840);
   static const Color failedBg = Color(0xFFFEE2E2);
+  static const Color failedBgDark = Color(0xFF3A1A1A);
 
   static const Color skipped = Color(0xFF6B7280);
   static const Color skippedBg = Color(0xFFF3F4F6);
+  static const Color skippedBgDark = Color(0xFF2A2A30);
+
+  /// Returns the appropriate background color based on brightness
+  static Color pendingBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? pendingBgDark : pendingBg;
+  static Color inProgressBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? inProgressBgDark : inProgressBg;
+  static Color completedBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? completedBgDark : completedBg;
+  static Color failedBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? failedBgDark : failedBg;
+  static Color skippedBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? skippedBgDark : skippedBg;
+
+  /// Notes card colors
+  static const Color notesBg = Color(0xFFFFF7ED);
+  static const Color notesBgDark = Color(0xFF3A2E1A);
+  static const Color notesAccent = Color(0xFFEA580C);
+  static const Color notesAccentDark = Color(0xFFFF8C42);
+
+  static Color notesBackground(Brightness brightness) =>
+      brightness == Brightness.dark ? notesBgDark : notesBg;
+  static Color notesAccentColor(Brightness brightness) =>
+      brightness == Brightness.dark ? notesAccentDark : notesAccent;
 }

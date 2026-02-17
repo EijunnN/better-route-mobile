@@ -124,7 +124,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: StatusColors.completedBg,
+                        color: StatusColors.completedBackground(theme.brightness),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(

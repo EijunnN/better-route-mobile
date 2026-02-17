@@ -129,10 +129,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               color: theme.colorScheme.primary,
                               borderRadius: BorderRadius.circular(18),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.local_shipping_rounded,
                               size: 40,
-                              color: Colors.white,
+                              color: theme.colorScheme.primaryForeground,
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -251,10 +251,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               onPressed: authState.isLoading ? null : _login,
                               size: ButtonSize.large,
                               child: authState.isLoading
-                                  ? const CircularProgressIndicator(
+                                  ? CircularProgressIndicator(
                                       size: 24,
                                       strokeWidth: 2.5,
-                                      color: Colors.white,
+                                      color: theme.colorScheme.primaryForeground,
                                     )
                                   : const Text(
                                       'Iniciar sesion',
