@@ -4,3 +4,4 @@ export 'route_provider.dart';
 export 'location_provider.dart';
 export 'tracking_provider.dart';
 export 'workflow_provider.dart';
+export 'field_definition_provider.dart';

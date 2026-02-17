@@ -5,3 +5,4 @@ export 'vehicle.dart';
 export 'route_stop.dart';
 export 'route_data.dart';
 export 'workflow_state.dart';
+export 'field_definition.dart';

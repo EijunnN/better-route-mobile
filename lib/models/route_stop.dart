@@ -90,6 +90,7 @@ class OrderInfo {
   final double? volume;
   final double? value;
   final int? units;
+  final Map<String, dynamic> customFields;
 
   const OrderInfo({
     required this.id,
@@ -102,6 +103,7 @@ class OrderInfo {
     this.volume,
     this.value,
     this.units,
+    this.customFields = const {},
   });
 
   factory OrderInfo.fromJson(Map<String, dynamic> json) {
@@ -116,12 +118,17 @@ class OrderInfo {
       volume: (json['volume'] as num?)?.toDouble(),
       value: (json['value'] as num?)?.toDouble(),
       units: json['units'] as int?,
+      customFields: json['customFields'] != null
+          ? Map<String, dynamic>.from(json['customFields'] as Map)
+          : const {},
     );
   }
 
   bool get hasContactInfo =>
       (customerPhone != null && customerPhone!.isNotEmpty) ||
       (customerEmail != null && customerEmail!.isNotEmpty);
+
+  bool get hasCustomFields => customFields.isNotEmpty;
 }
 
 /// Route stop model matching backend response

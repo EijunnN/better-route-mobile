@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../providers/providers.dart';
 import '../widgets/delivery_action_sheet.dart';
 import '../widgets/failure_reason_sheet.dart';
+import '../widgets/custom_fields_display.dart';
 
 class StopDetailScreen extends ConsumerStatefulWidget {
   final String stopId;
@@ -89,6 +90,15 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             _buildOrderCard(currentStop.order!),
 
           if (currentStop.order != null) const SizedBox(height: 16),
+
+          // Custom fields
+          if (currentStop.order != null &&
+              currentStop.order!.hasCustomFields)
+            _buildCustomFieldsCard(currentStop.order!),
+
+          if (currentStop.order != null &&
+              currentStop.order!.hasCustomFields)
+            const SizedBox(height: 16),
 
           // Notes
           if (currentStop.order?.notes != null &&
@@ -484,6 +494,17 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomFieldsCard(OrderInfo order) {
+    final fieldDefState = ref.watch(fieldDefinitionProvider);
+
+    if (!fieldDefState.hasDefinitions) return const SizedBox.shrink();
+
+    return CustomFieldsDisplay(
+      customFields: order.customFields,
+      definitions: fieldDefState.orderFields,
     );
   }
 
