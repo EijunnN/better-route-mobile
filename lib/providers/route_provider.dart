@@ -155,6 +155,32 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
+  /// Transition a stop to a new workflow state
+  Future<bool> transitionStop({
+    required String stopId,
+    required String workflowStateId,
+    required String systemState,
+    String? notes,
+    String? failureReason,
+    List<String>? evidenceUrls,
+  }) async {
+    try {
+      final status = StopStatus.fromString(systemState);
+      await _routeService.transitionStop(
+        stopId: stopId,
+        workflowStateId: workflowStateId,
+        status: status,
+        notes: notes,
+        failureReason: failureReason,
+        evidenceUrls: evidenceUrls,
+      );
+      await refresh();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Upload evidence photo
   Future<String?> uploadEvidence({
     required File photo,

@@ -25,6 +25,7 @@ class RouteService {
     String? notes,
     FailureReason? failureReason,
     List<String>? evidenceUrls,
+    String? workflowStateId,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -43,6 +44,10 @@ class RouteService {
         data['evidenceUrls'] = evidenceUrls;
       }
 
+      if (workflowStateId != null) {
+        data['workflowStateId'] = workflowStateId;
+      }
+
       final response = await _api.patch(
         '${ApiConfig.routeStopsEndpoint}/$stopId',
         data: data,
@@ -56,10 +61,11 @@ class RouteService {
   }
 
   /// Start a stop (mark as in progress)
-  Future<RouteStop> startStop(String stopId) async {
+  Future<RouteStop> startStop(String stopId, {String? workflowStateId}) async {
     return updateStopStatus(
       stopId: stopId,
       status: StopStatus.inProgress,
+      workflowStateId: workflowStateId,
     );
   }
 
@@ -68,12 +74,14 @@ class RouteService {
     required String stopId,
     required List<String> evidenceUrls,
     String? notes,
+    String? workflowStateId,
   }) async {
     return updateStopStatus(
       stopId: stopId,
       status: StopStatus.completed,
       evidenceUrls: evidenceUrls,
       notes: notes,
+      workflowStateId: workflowStateId,
     );
   }
 
@@ -83,6 +91,7 @@ class RouteService {
     required FailureReason reason,
     List<String>? evidenceUrls,
     String? notes,
+    String? workflowStateId,
   }) async {
     return updateStopStatus(
       stopId: stopId,
@@ -90,6 +99,7 @@ class RouteService {
       failureReason: reason,
       evidenceUrls: evidenceUrls,
       notes: notes,
+      workflowStateId: workflowStateId,
     );
   }
 
@@ -97,12 +107,53 @@ class RouteService {
   Future<RouteStop> skipStop({
     required String stopId,
     String? notes,
+    String? workflowStateId,
   }) async {
     return updateStopStatus(
       stopId: stopId,
       status: StopStatus.skipped,
       notes: notes,
+      workflowStateId: workflowStateId,
     );
+  }
+
+  /// Update stop with a workflow state transition (generic for dynamic states)
+  Future<RouteStop> transitionStop({
+    required String stopId,
+    required String workflowStateId,
+    required StopStatus status,
+    String? notes,
+    String? failureReason,
+    List<String>? evidenceUrls,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'status': status.value,
+        'workflowStateId': workflowStateId,
+      };
+
+      if (notes != null && notes.isNotEmpty) {
+        data['notes'] = notes;
+      }
+
+      if (failureReason != null && failureReason.isNotEmpty) {
+        data['failureReason'] = failureReason;
+      }
+
+      if (evidenceUrls != null && evidenceUrls.isNotEmpty) {
+        data['evidenceUrls'] = evidenceUrls;
+      }
+
+      final response = await _api.patch(
+        '${ApiConfig.routeStopsEndpoint}/$stopId',
+        data: data,
+      );
+
+      final responseData = response.data as Map<String, dynamic>;
+      return RouteStop.fromJson(responseData['data'] as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
   }
 
   /// Get presigned URL for uploading evidence

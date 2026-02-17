@@ -32,7 +32,7 @@ class StopCard extends ConsumerWidget {
       distanceText = locationService.formatDistance(distance);
     }
 
-    final statusColor = _getStatusColor();
+    final statusColor = _getStatusColor(stop);
     final isDone = stop.status.isDone;
     final isActive = stop.status.isInProgress;
 
@@ -118,7 +118,11 @@ class StopCard extends ConsumerWidget {
                           const SizedBox(width: 8),
 
                           // Status badge
-                          _StatusBadge(status: stop.status),
+                          _StatusBadge(
+                            status: stop.status,
+                            workflowLabel: stop.workflowStateLabel,
+                            workflowColor: stop.workflowStateColor,
+                          ),
 
                           const SizedBox(width: 4),
 
@@ -225,7 +229,14 @@ class StopCard extends ConsumerWidget {
       stop.estimatedArrival != null ||
       (stop.timeWindow?.hasWindow == true);
 
-  Color _getStatusColor() {
+  Color _getStatusColor(RouteStop stop) {
+    // Use workflow state color if available
+    if (stop.workflowStateColor != null) {
+      final hex = stop.workflowStateColor!.replaceFirst('#', '');
+      return Color(int.parse('0xFF$hex'));
+    }
+
+    // Fallback to hardcoded colors
     switch (stop.status) {
       case StopStatus.pending:
         return StatusColors.pending;
@@ -275,8 +286,14 @@ class _InfoChip extends StatelessWidget {
 
 class _StatusBadge extends StatelessWidget {
   final StopStatus status;
+  final String? workflowLabel;
+  final String? workflowColor;
 
-  const _StatusBadge({required this.status});
+  const _StatusBadge({
+    required this.status,
+    this.workflowLabel,
+    this.workflowColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -284,27 +301,35 @@ class _StatusBadge extends StatelessWidget {
     Color textColor;
     String text;
 
-    switch (status) {
-      case StopStatus.pending:
-        bgColor = StatusColors.pendingBg;
-        textColor = StatusColors.pending;
-        text = 'Pendiente';
-      case StopStatus.inProgress:
-        bgColor = StatusColors.inProgressBg;
-        textColor = StatusColors.inProgress;
-        text = 'En curso';
-      case StopStatus.completed:
-        bgColor = StatusColors.completedBg;
-        textColor = StatusColors.completed;
-        text = 'Entregado';
-      case StopStatus.failed:
-        bgColor = StatusColors.failedBg;
-        textColor = StatusColors.failed;
-        text = 'Fallido';
-      case StopStatus.skipped:
-        bgColor = StatusColors.skippedBg;
-        textColor = StatusColors.skipped;
-        text = 'Omitido';
+    // Use workflow state data if available
+    if (workflowLabel != null && workflowColor != null) {
+      final hex = workflowColor!.replaceFirst('#', '');
+      textColor = Color(int.parse('0xFF$hex'));
+      bgColor = textColor.withValues(alpha: 0.1);
+      text = workflowLabel!;
+    } else {
+      switch (status) {
+        case StopStatus.pending:
+          bgColor = StatusColors.pendingBg;
+          textColor = StatusColors.pending;
+          text = 'Pendiente';
+        case StopStatus.inProgress:
+          bgColor = StatusColors.inProgressBg;
+          textColor = StatusColors.inProgress;
+          text = 'En curso';
+        case StopStatus.completed:
+          bgColor = StatusColors.completedBg;
+          textColor = StatusColors.completed;
+          text = 'Entregado';
+        case StopStatus.failed:
+          bgColor = StatusColors.failedBg;
+          textColor = StatusColors.failed;
+          text = 'Fallido';
+        case StopStatus.skipped:
+          bgColor = StatusColors.skippedBg;
+          textColor = StatusColors.skipped;
+          text = 'Omitido';
+      }
     }
 
     return Container(

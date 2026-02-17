@@ -141,6 +141,9 @@ class RouteStop {
   final String? failureReason;
   final List<String>? evidenceUrls;
   final OrderInfo? order;
+  final String? workflowStateId;
+  final String? workflowStateLabel;
+  final String? workflowStateColor;
 
   const RouteStop({
     required this.id,
@@ -158,6 +161,9 @@ class RouteStop {
     this.failureReason,
     this.evidenceUrls,
     this.order,
+    this.workflowStateId,
+    this.workflowStateLabel,
+    this.workflowStateColor,
   });
 
   /// Parse latitude/longitude that can be either String or num
@@ -196,6 +202,9 @@ class RouteStop {
       order: json['order'] != null
           ? OrderInfo.fromJson(json['order'] as Map<String, dynamic>)
           : null,
+      workflowStateId: json['workflowStateId'] as String?,
+      workflowStateLabel: json['workflowStateLabel'] as String?,
+      workflowStateColor: json['workflowStateColor'] as String?,
     );
   }
 
@@ -232,6 +241,9 @@ class RouteStop {
     String? failureReason,
     List<String>? evidenceUrls,
     OrderInfo? order,
+    String? workflowStateId,
+    String? workflowStateLabel,
+    String? workflowStateColor,
   }) {
     return RouteStop(
       id: id ?? this.id,
@@ -249,6 +261,9 @@ class RouteStop {
       failureReason: failureReason ?? this.failureReason,
       evidenceUrls: evidenceUrls ?? this.evidenceUrls,
       order: order ?? this.order,
+      workflowStateId: workflowStateId ?? this.workflowStateId,
+      workflowStateLabel: workflowStateLabel ?? this.workflowStateLabel,
+      workflowStateColor: workflowStateColor ?? this.workflowStateColor,
     );
   }
 }

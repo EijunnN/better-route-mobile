@@ -25,9 +25,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
 
-    // Load route data and start location tracking
+    // Load route data, workflow states, and start location tracking
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(routeProvider.notifier).loadRoute();
+      ref.read(workflowProvider.notifier).loadStates();
       ref.read(locationProvider.notifier).startTracking();
       // Start sending location to server
       ref.read(trackingProvider.notifier).startTracking();
@@ -67,6 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(locationProvider.notifier).stopTracking();
       ref.read(trackingProvider.notifier).stopTracking();
       ref.read(routeProvider.notifier).clear();
+      ref.read(workflowProvider.notifier).clear();
       await ref.read(authProvider.notifier).logout();
     }
   }
