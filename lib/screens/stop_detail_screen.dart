@@ -1398,9 +1398,6 @@ class _WorkflowTransitionSheetState extends State<_WorkflowTransitionSheet> {
                     Row(
                       children: [
                         const Text('Foto de evidencia').semiBold().small(),
-                        const SizedBox(width: 8),
-                        if (!_needsPhoto)
-                          OutlineBadge(child: const Text('Opcional').xSmall()),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -1459,7 +1456,8 @@ class _WorkflowTransitionSheetState extends State<_WorkflowTransitionSheet> {
                   ],
 
                   // Notes field
-                  if (_needsNotes || true) ...[
+                  // Notes field always visible (required label changes based on state config)
+                  ...[
                     Text(
                       _needsNotes ? 'Notas' : 'Notas (opcional)',
                     ).semiBold().small(),
