@@ -1,6 +1,8 @@
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/design/tokens.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app/app.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -13,52 +15,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _emailFocus = FocusNode();
-  final _passwordFocus = FocusNode();
 
   String? _emailError;
   String? _passwordError;
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  late final AnimationController _intro;
 
   @override
   void initState() {
     super.initState();
-
-    _animationController = AnimationController(
+    _intro = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    _animationController.forward();
+      duration: const Duration(milliseconds: 700),
+    )..forward();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _intro.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _emailFocus.dispose();
-    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -66,226 +42,171 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     bool valid = true;
     setState(() {
       final email = _emailController.text.trim();
-      if (email.isEmpty) {
-        _emailError = 'Ingresa tu correo';
-        valid = false;
-      } else if (!email.contains('@')) {
-        _emailError = 'Ingresa un correo valido';
-        valid = false;
-      } else {
-        _emailError = null;
-      }
-
-      if (_passwordController.text.isEmpty) {
-        _passwordError = 'Ingresa tu contrasena';
-        valid = false;
-      } else {
-        _passwordError = null;
-      }
+      _emailError = email.isEmpty
+          ? 'Ingresa tu correo'
+          : !email.contains('@')
+              ? 'Ingresa un correo válido'
+              : null;
+      _passwordError = _passwordController.text.isEmpty
+          ? 'Ingresa tu contraseña'
+          : null;
+      if (_emailError != null || _passwordError != null) valid = false;
     });
     return valid;
   }
 
   Future<void> _login() async {
     if (!_validate()) return;
-
-    // Hide keyboard
-    FocusScope.of(context).unfocus();
-
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    await ref.read(authProvider.notifier).login(email, password);
+    await ref.read(authProvider.notifier).login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final theme = Theme.of(context);
 
     return Scaffold(
-      child: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 32),
+      backgroundColor: AppColors.bgBase,
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: _intro,
+          builder: (context, _) {
+            final t = Curves.easeOutCubic.transform(_intro.value);
+            return Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, (1 - t) * 16),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 48),
+                      // Eyebrow + headline. Big, with intentional negative
+                      // tracking so it reads as a brand statement, not a
+                      // form label.
+                      Text('Driver Cockpit', style: AppTypography.overline.copyWith(letterSpacing: 4)),
+                      const SizedBox(height: 16),
+                      Text('Iniciá tu turno.', style: AppTypography.h1),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Acceso solo para conductores autorizados de la empresa.',
+                        style: AppTypography.body.copyWith(color: AppColors.fgSecondary),
+                      ),
+                      const SizedBox(height: 48),
 
-                    // Branding
-                    Center(
-                      child: Column(
+                      // Auth error banner — surfaces backend-side errors
+                      // without masking inline field errors.
+                      if (authState.error != null) ...[
+                        _ErrorBanner(message: authState.error!),
+                        const SizedBox(height: 20),
+                      ],
+
+                      AppTextField(
+                        controller: _emailController,
+                        label: 'Correo',
+                        placeholder: 'tu@empresa.com',
+                        leadingIcon: Icons.alternate_email,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofocus: true,
+                        errorText: _emailError,
+                        onChanged: (_) {
+                          if (_emailError != null) setState(() => _emailError = null);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _passwordController,
+                        label: 'Contraseña',
+                        placeholder: '••••••••',
+                        leadingIcon: Icons.lock_outline_rounded,
+                        obscure: true,
+                        textInputAction: TextInputAction.done,
+                        errorText: _passwordError,
+                        onSubmitted: (_) => _login(),
+                        onChanged: (_) {
+                          if (_passwordError != null) setState(() => _passwordError = null);
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                      AppButton.primaryCta(
+                        label: 'Entrar',
+                        icon: Icons.arrow_forward_rounded,
+                        isLoading: authState.isLoading,
+                        onPressed: _login,
+                      ),
+
+                      const SizedBox(height: 32),
+                      const _Divider(),
+                      const SizedBox(height: 24),
+                      // Help footer — discreet but reachable.
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Icon(
-                              Icons.local_shipping_rounded,
-                              size: 40,
-                              color: theme.colorScheme.primaryForeground,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
+                          Icon(Icons.support_agent_rounded, size: 14, color: AppColors.fgTertiary),
+                          const SizedBox(width: 6),
                           Text(
-                            'BetterRoute',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.primary,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text('Inicia sesion para continuar').muted(),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    // Form card
-                    Card(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Email field
-                          const Text('Correo electronico').semiBold().small(),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _emailController,
-                            focusNode: _emailFocus,
-                            keyboardType: TextInputType.emailAddress,
-                            enabled: !authState.isLoading,
-                            placeholder: const Text('correo@ejemplo.com'),
-                            onSubmitted: (_) {
-                              _passwordFocus.requestFocus();
-                            },
-                          ),
-                          if (_emailError != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _emailError!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.destructive,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 20),
-
-                          // Password field
-                          const Text('Contrasena').semiBold().small(),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _passwordController,
-                            focusNode: _passwordFocus,
-                            obscureText: true,
-                            enabled: !authState.isLoading,
-                            placeholder: const Text('Tu contrasena'),
-                            onSubmitted: (_) => _login(),
-                            features: const [
-                              InputFeature.passwordToggle(),
-                            ],
-                          ),
-                          if (_passwordError != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _passwordError!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.destructive,
-                              ),
-                            ),
-                          ],
-
-                          // Error message
-                          if (authState.error != null) ...[
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.destructive
-                                    .withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    color: theme.colorScheme.destructive,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      authState.error!,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: theme.colorScheme.destructive,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 24),
-
-                          // Login button
-                          SizedBox(
-                            height: 56,
-                            child: PrimaryButton(
-                              onPressed: authState.isLoading ? null : _login,
-                              size: ButtonSize.large,
-                              child: authState.isLoading
-                                  ? CircularProgressIndicator(
-                                      size: 24,
-                                      strokeWidth: 2.5,
-                                      color: theme.colorScheme.primaryForeground,
-                                    )
-                                  : const Text(
-                                      'Iniciar sesion',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                            ),
+                            '¿Problemas para entrar? Contactá a tu coordinador.',
+                            style: AppTypography.bodySmall.copyWith(color: AppColors.fgTertiary),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Footer
-                    Center(
-                      child: const Text('App exclusiva para conductores')
-                          .muted()
-                          .small(),
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.statusFailedBg,
+        borderRadius: AppRadius.rMd,
+        border: Border.all(color: AppColors.accentDanger.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 18, color: AppColors.accentDanger),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.fgPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Container(height: 1, color: AppColors.borderSubtle)),
+      ],
     );
   }
 }

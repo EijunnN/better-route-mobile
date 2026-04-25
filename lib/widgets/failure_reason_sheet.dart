@@ -1,16 +1,21 @@
 import 'dart:io';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import '../core/theme.dart';
+import '../core/design/tokens.dart';
 import '../models/models.dart';
+import 'app/app.dart';
 
+/// Failure reason sheet — cockpit redesign.
+///
+/// Two modes:
+///  * Legacy enum (when [targetWorkflowState] is null): renders a chip
+///    grid of [FailureReason] values.
+///  * Workflow (when [targetWorkflowState] is set): renders the
+///    operator-defined reasonOptions as chips. Result returns
+///    `customReason` (String) instead of `reason` (enum).
 class FailureReasonSheet extends StatefulWidget {
   final RouteStop stop;
-  /// When the company configured a workflow state (e.g. "Entrega fallida")
-  /// with custom `reasonOptions`, pass it here. The sheet renders those
-  /// options instead of the hard-coded [FailureReason] enum, and returns
-  /// the selected option as `customReason` (String) in the result record.
-  /// When null, the sheet falls back to the legacy enum-based flow.
   final WorkflowState? targetWorkflowState;
 
   const FailureReasonSheet({
@@ -24,9 +29,7 @@ class FailureReasonSheet extends StatefulWidget {
 }
 
 class _FailureReasonSheetState extends State<FailureReasonSheet> {
-  // Legacy path: enum reason. Used when [targetWorkflowState] is null.
   FailureReason? _selectedReason;
-  // Workflow path: free-text reason picked from workflow.reasonOptions.
   String? _selectedCustomReason;
   final _notesController = TextEditingController();
   final List<File> _photos = [];
@@ -47,9 +50,8 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
 
   Future<void> _takePhoto() async {
     if (_isCapturing) return;
-
+    HapticFeedback.lightImpact();
     setState(() => _isCapturing = true);
-
     try {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
@@ -57,92 +59,71 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
         maxWidth: 1920,
         maxHeight: 1080,
       );
-
-      if (photo != null) {
-        setState(() {
-          _photos.add(File(photo.path));
-        });
-      }
+      if (photo != null) setState(() => _photos.add(File(photo.path)));
     } finally {
       setState(() => _isCapturing = false);
     }
   }
 
-  void _removePhoto(int index) {
-    setState(() {
-      _photos.removeAt(index);
-    });
-  }
+  void _removePhoto(int i) => setState(() => _photos.removeAt(i));
 
   void _confirm() {
     if (!_hasSelection) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Motivo requerido'),
-          content: const Text('Por favor, selecciona un motivo'),
-          actions: [
-            PrimaryButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Entendido'),
-            ),
-          ],
-        ),
-      );
+      _alert('Motivo requerido', 'Seleccioná un motivo para continuar.');
       return;
     }
-
-    // Legacy "OTHER" path: enforce notes so the failure has a real reason.
     if (!_isWorkflowMode &&
         _selectedReason == FailureReason.other &&
         _notesController.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Notas requeridas'),
-          content: const Text('Por favor, especifica el motivo en las notas'),
-          actions: [
-            PrimaryButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Entendido'),
-            ),
-          ],
-        ),
-      );
+      _alert('Notas requeridas', 'Especificá el motivo en las notas.');
       return;
     }
-
-    // Workflow mode: only require notes if the workflow state explicitly
-    // demands it (requiresNotes flag set by the operator in the dashboard).
     if (_isWorkflowMode &&
         widget.targetWorkflowState!.requiresNotes &&
         _notesController.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Notas requeridas'),
-          content: const Text('Este estado requiere agregar una nota.'),
-          actions: [
-            PrimaryButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Entendido'),
-            ),
-          ],
-        ),
-      );
+      _alert('Notas requeridas', 'Este estado requiere agregar una nota.');
       return;
     }
-
     Navigator.pop(context, (
-      // Legacy enum reason — null when in workflow mode.
       reason: _selectedReason,
-      // Workflow string reason — null when in legacy mode.
       customReason: _selectedCustomReason,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
       photos: _photos,
     ));
+  }
+
+  void _alert(String title, String body) {
+    showDialog(
+      context: context,
+      barrierColor: AppColors.bgOverlay,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.bgSurfaceElevated,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.rXl),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: AppTypography.h4),
+              const SizedBox(height: 6),
+              Text(
+                body,
+                style: AppTypography.body.copyWith(color: AppColors.fgSecondary),
+              ),
+              const SizedBox(height: 16),
+              AppButton(
+                label: 'Entendido',
+                fullWidth: true,
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   IconData _reasonIcon(FailureReason reason) {
@@ -166,325 +147,277 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
+    return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.card,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Fixed header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Column(
-              children: [
-                // Handle
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
+      child: AppSheet(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.border,
-                      borderRadius: BorderRadius.circular(2),
+                      color: AppColors.statusFailedBg,
+                      borderRadius: AppRadius.rMd,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: AppColors.accentDanger,
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Header
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: StatusColors.failedBackground(theme.brightness),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.cancel_rounded,
-                        color: theme.colorScheme.destructive,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Reportar fallo').semiBold().large(),
-                          Text(widget.stop.displayName).small().muted(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Scrollable content
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Reason selection label
-                  const Text('Motivo').semiBold().small(),
-
-                  const SizedBox(height: 10),
-
-                  // Reason chips in a wrap. In workflow mode we render the
-                  // operator-defined reasonOptions (free text). In legacy
-                  // mode we render the hard-coded FailureReason enum with
-                  // icons for visual hint.
-                  if (_isWorkflowMode)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _workflowReasons.map((reason) {
-                        final isSelected = _selectedCustomReason == reason;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedCustomReason = reason),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? StatusColors.failedBackground(theme.brightness)
-                                  : theme.colorScheme.muted,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.colorScheme.destructive
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              reason,
-                              style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? theme.colorScheme.destructive
-                                    : theme.colorScheme.foreground,
-                              ),
-                            ).small(),
-                          ),
-                        );
-                      }).toList(),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: FailureReason.values.map((reason) {
-                        final isSelected = _selectedReason == reason;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedReason = reason),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? StatusColors.failedBackground(theme.brightness)
-                                  : theme.colorScheme.muted,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.colorScheme.destructive
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _reasonIcon(reason),
-                                  size: 18,
-                                  color: isSelected
-                                      ? theme.colorScheme.destructive
-                                      : theme.colorScheme.mutedForeground,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  reason.label,
-                                  style: TextStyle(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: isSelected
-                                        ? theme.colorScheme.destructive
-                                        : theme.colorScheme.foreground,
-                                  ),
-                                ).small(),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  // Notes field. In workflow mode we follow the workflow's
-                  // requiresNotes flag; in legacy "OTHER" mode we always
-                  // require text. Otherwise it's optional context.
-                  Text(
-                    _isWorkflowMode
-                        ? (widget.targetWorkflowState!.requiresNotes
-                            ? 'Notas (requeridas)'
-                            : 'Notas adicionales (opcional)')
-                        : (_selectedReason == FailureReason.other
-                            ? 'Especifica el motivo'
-                            : 'Notas adicionales (opcional)'),
-                  ).semiBold().small(),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _notesController,
-                    maxLines: 2,
-                    placeholder: const Text('Agrega mas detalles...'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Photo evidence (optional)
-                  Row(
-                    children: [
-                      const Text('Foto de evidencia').semiBold().small(),
-                      const SizedBox(width: 8),
-                      OutlineBadge(
-                        child: const Text('Opcional').xSmall(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  if (_photos.isNotEmpty) ...[
-                    SizedBox(
-                      height: 72,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _photos.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == _photos.length) {
-                            return _buildAddPhotoButton(theme);
-                          }
-                          return _buildPhotoThumbnail(index);
-                        },
-                      ),
-                    ),
-                  ] else ...[
-                    OutlineButton(
-                      onPressed: _takePhoto,
-                      leading: _isCapturing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.camera_alt_outlined, size: 18),
-                      child: const Text('Tomar foto'),
-                    ),
-                  ],
-
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-
-          // Fixed action buttons at bottom
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.border),
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 52,
-                    child: DestructiveButton(
-                      onPressed: _hasSelection ? _confirm : null,
-                      child: Text(
-                        'Confirmar',
-                        style: TextStyle(
-                          color: _hasSelection
-                              ? null
-                              : theme.colorScheme.mutedForeground,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Reportar fallo', style: AppTypography.h4),
+                        Text(
+                          widget.stop.displayName,
+                          style: AppTypography.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ).semiBold(),
-                    ),
-                  ),
-                  Center(
-                    child: GhostButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar').muted(),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Motivo', style: AppTypography.label),
+                    const SizedBox(height: 8),
+                    if (_isWorkflowMode)
+                      _ReasonChips(
+                        reasons: _workflowReasons,
+                        selected: _selectedCustomReason,
+                        onSelect: (r) =>
+                            setState(() => _selectedCustomReason = r),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: FailureReason.values.map((reason) {
+                          final selected = _selectedReason == reason;
+                          return GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedReason = reason),
+                            child: AnimatedContainer(
+                              duration: AppMotion.fast,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppColors.statusFailedBg
+                                    : AppColors.bgSurface,
+                                borderRadius: AppRadius.rMd,
+                                border: Border.all(
+                                  color: selected
+                                      ? AppColors.accentDanger
+                                      : AppColors.borderSubtle,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _reasonIcon(reason),
+                                    size: 16,
+                                    color: selected
+                                        ? AppColors.accentDanger
+                                        : AppColors.fgSecondary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    reason.label,
+                                    style: AppTypography.label.copyWith(
+                                      color: selected
+                                          ? AppColors.accentDanger
+                                          : AppColors.fgPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    const SizedBox(height: 18),
+                    Text(
+                      _isWorkflowMode
+                          ? (widget.targetWorkflowState!.requiresNotes
+                              ? 'Notas (requeridas)'
+                              : 'Notas adicionales (opcional)')
+                          : (_selectedReason == FailureReason.other
+                              ? 'Especificá el motivo'
+                              : 'Notas adicionales (opcional)'),
+                      style: AppTypography.label,
+                    ),
+                    const SizedBox(height: 8),
+                    AppTextField(
+                      controller: _notesController,
+                      placeholder: 'Detalles…',
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 18),
+                    Text('Foto de evidencia (opcional)', style: AppTypography.label),
+                    const SizedBox(height: 8),
+                    if (_photos.isNotEmpty)
+                      SizedBox(
+                        height: 72,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _photos.length + 1,
+                          itemBuilder: (context, i) {
+                            if (i == _photos.length) {
+                              return _AddPhotoButton(onTap: _takePhoto, size: 72);
+                            }
+                            return _PhotoThumb(
+                              file: _photos[i],
+                              onRemove: () => _removePhoto(i),
+                              size: 72,
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      AppButton(
+                        label: 'Tomar foto',
+                        icon: Icons.camera_alt_rounded,
+                        variant: AppButtonVariant.secondary,
+                        fullWidth: true,
+                        isLoading: _isCapturing,
+                        onPressed: _takePhoto,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              child: AppButton(
+                label: 'Confirmar fallo',
+                variant: AppButtonVariant.destructive,
+                size: AppButtonSize.lg,
+                fullWidth: true,
+                onPressed: _hasSelection ? _confirm : null,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: AppButton(
+                label: 'Cancelar',
+                variant: AppButtonVariant.ghost,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildPhotoThumbnail(int index) {
+class _ReasonChips extends StatelessWidget {
+  final List<String> reasons;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  const _ReasonChips({
+    required this.reasons,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: reasons.map((r) {
+        final isSelected = selected == r;
+        return GestureDetector(
+          onTap: () => onSelect(r),
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.statusFailedBg
+                  : AppColors.bgSurface,
+              borderRadius: AppRadius.rFull,
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.accentDanger
+                    : AppColors.borderSubtle,
+              ),
+            ),
+            child: Text(
+              r,
+              style: AppTypography.label.copyWith(
+                color: isSelected
+                    ? AppColors.accentDanger
+                    : AppColors.fgPrimary,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _PhotoThumb extends StatelessWidget {
+  final File file;
+  final VoidCallback onRemove;
+  final double size;
+
+  const _PhotoThumb({
+    required this.file,
+    required this.onRemove,
+    this.size = 88,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 10),
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              _photos[index],
-              width: 72,
-              height: 72,
-              fit: BoxFit.cover,
-            ),
+            borderRadius: AppRadius.rMd,
+            child: Image.file(file, width: size, height: size, fit: BoxFit.cover),
           ),
           Positioned(
-            top: 3,
-            right: 3,
+            top: 4,
+            right: 4,
             child: GestureDetector(
-              onTap: () => _removePhoto(index),
+              onTap: onRemove,
               child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: StatusColors.failed,
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
+                  color: AppColors.accentDanger,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 child: const Icon(
-                  Icons.close,
-                  size: 11,
+                  Icons.close_rounded,
+                  size: 12,
                   color: Colors.white,
                 ),
               ),
@@ -494,29 +427,30 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       ),
     );
   }
+}
 
-  Widget _buildAddPhotoButton(ThemeData theme) {
+class _AddPhotoButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final double size;
+
+  const _AddPhotoButton({required this.onTap, this.size = 88});
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _takePhoto,
+      onTap: onTap,
       child: Container(
-        width: 72,
-        height: 72,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
-          color: theme.colorScheme.muted,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.colorScheme.border),
+          color: AppColors.bgSurface,
+          borderRadius: AppRadius.rMd,
+          border: Border.all(color: AppColors.borderSubtle),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.add_a_photo_outlined,
-              size: 20,
-              color: theme.colorScheme.mutedForeground,
-            ),
-            const SizedBox(height: 2),
-            Text('Agregar').xSmall().muted(),
-          ],
+        child: const Icon(
+          Icons.add_a_photo_rounded,
+          size: 18,
+          color: AppColors.fgSecondary,
         ),
       ),
     );
