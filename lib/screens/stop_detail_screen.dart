@@ -1097,14 +1097,21 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   void _showDeliveryActionSheet(RouteStop stop) {
+    // Pull stop-level custom fields from the field definitions provider so
+    // the sheet can render them as editable inputs. Backend stores answers
+    // in route_stops.customFields and validates required fields server-side
+    // on COMPLETED transition.
+    final fieldDefState = ref.read(fieldDefinitionProvider);
+    final stopFields = fieldDefState.stopFields;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DeliveryActionSheet(
         stop: stop,
-        onComplete: (photos, notes) =>
-            _completeDelivery(stop, photos, notes),
+        stopFieldDefinitions: stopFields,
+        onComplete: (photos, notes, customFields) =>
+            _completeDelivery(stop, photos, notes, customFields),
       ),
     );
   }
@@ -1113,6 +1120,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     RouteStop stop,
     List<File> photos,
     String? notes,
+    Map<String, dynamic> customFields,
   ) async {
     Navigator.pop(context); // Close sheet
 
@@ -1139,6 +1147,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             stopId: stop.id,
             evidenceUrls: evidenceUrls,
             notes: notes,
+            customFields: customFields.isEmpty ? null : customFields,
           );
 
       if (!success && mounted) {
@@ -1152,15 +1161,23 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   Future<void> _handleFailure(RouteStop stop) async {
+    // Legacy failure flow: no workflow state, use the FailureReason enum.
+    // The dynamic flow lives in `_handleWorkflowTransition` and uses the
+    // same sheet but passes `targetWorkflowState` so it shows reasonOptions.
     final result = await showModalBottomSheet<
-        ({FailureReason reason, String? notes, List<File> photos})>(
+        ({
+          FailureReason? reason,
+          String? customReason,
+          String? notes,
+          List<File> photos,
+        })>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => FailureReasonSheet(stop: stop),
     );
 
-    if (result == null) return;
+    if (result == null || result.reason == null) return;
 
     setState(() => _isProcessing = true);
 
@@ -1184,7 +1201,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       // Mark as failed
       final success = await ref.read(routeProvider.notifier).failStop(
             stopId: stop.id,
-            reason: result.reason,
+            reason: result.reason!,
             evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
             notes: result.notes,
           );

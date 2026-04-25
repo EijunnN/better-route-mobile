@@ -151,6 +151,11 @@ class RouteStop {
   final String? workflowStateId;
   final String? workflowStateLabel;
   final String? workflowStateColor;
+  /// Values captured by the driver for fields with entity=route_stops.
+  /// Backend stores them in `route_stops.custom_fields` (jsonb). Distinct
+  /// from `order?.customFields` which lives on `orders.custom_fields` and
+  /// is read-only for the driver (filled by the operator at order creation).
+  final Map<String, dynamic>? customFields;
 
   const RouteStop({
     required this.id,
@@ -171,6 +176,7 @@ class RouteStop {
     this.workflowStateId,
     this.workflowStateLabel,
     this.workflowStateColor,
+    this.customFields,
   });
 
   /// Parse latitude/longitude that can be either String or num
@@ -212,6 +218,9 @@ class RouteStop {
       workflowStateId: json['workflowStateId'] as String?,
       workflowStateLabel: json['workflowStateLabel'] as String?,
       workflowStateColor: json['workflowStateColor'] as String?,
+      customFields: json['customFields'] != null
+          ? Map<String, dynamic>.from(json['customFields'] as Map)
+          : null,
     );
   }
 
@@ -251,6 +260,7 @@ class RouteStop {
     String? workflowStateId,
     String? workflowStateLabel,
     String? workflowStateColor,
+    Map<String, dynamic>? customFields,
   }) {
     return RouteStop(
       id: id ?? this.id,
@@ -271,6 +281,7 @@ class RouteStop {
       workflowStateId: workflowStateId ?? this.workflowStateId,
       workflowStateLabel: workflowStateLabel ?? this.workflowStateLabel,
       workflowStateColor: workflowStateColor ?? this.workflowStateColor,
+      customFields: customFields ?? this.customFields,
     );
   }
 }

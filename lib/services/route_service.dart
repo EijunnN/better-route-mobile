@@ -26,6 +26,7 @@ class RouteService {
     FailureReason? failureReason,
     List<String>? evidenceUrls,
     String? workflowStateId,
+    Map<String, dynamic>? customFields,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -46,6 +47,12 @@ class RouteService {
 
       if (workflowStateId != null) {
         data['workflowStateId'] = workflowStateId;
+      }
+
+      // Custom fields captured by the driver (entity=route_stops). Backend
+      // validates required fields server-side on COMPLETED transition.
+      if (customFields != null && customFields.isNotEmpty) {
+        data['customFields'] = customFields;
       }
 
       final response = await _api.patch(
@@ -75,6 +82,7 @@ class RouteService {
     required List<String> evidenceUrls,
     String? notes,
     String? workflowStateId,
+    Map<String, dynamic>? customFields,
   }) async {
     return updateStopStatus(
       stopId: stopId,
@@ -82,6 +90,7 @@ class RouteService {
       evidenceUrls: evidenceUrls,
       notes: notes,
       workflowStateId: workflowStateId,
+      customFields: customFields,
     );
   }
 
@@ -125,6 +134,7 @@ class RouteService {
     String? notes,
     String? failureReason,
     List<String>? evidenceUrls,
+    Map<String, dynamic>? customFields,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -142,6 +152,10 @@ class RouteService {
 
       if (evidenceUrls != null && evidenceUrls.isNotEmpty) {
         data['evidenceUrls'] = evidenceUrls;
+      }
+
+      if (customFields != null && customFields.isNotEmpty) {
+        data['customFields'] = customFields;
       }
 
       final response = await _api.patch(

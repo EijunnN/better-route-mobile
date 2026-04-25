@@ -1,3 +1,4 @@
+import '../core/constants.dart';
 import '../models/workflow_state.dart';
 import 'api_service.dart';
 
@@ -11,7 +12,7 @@ class WorkflowService {
 
   /// Fetch workflow states from the API
   Future<List<WorkflowState>> getWorkflowStates() async {
-    final response = await _api.get('/api/mobile/driver/workflow-states');
+    final response = await _api.get(ApiConfig.workflowStatesEndpoint);
     final List<dynamic> data = response.data['data'] as List<dynamic>;
     return data
         .map((json) => WorkflowState.fromJson(json as Map<String, dynamic>))

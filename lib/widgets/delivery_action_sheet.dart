@@ -3,14 +3,24 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import 'custom_fields_form.dart';
 
 class DeliveryActionSheet extends StatefulWidget {
   final RouteStop stop;
-  final Function(List<File> photos, String? notes) onComplete;
+  /// Definitions for entity=route_stops + showInMobile=true. The driver
+  /// fills these in this sheet; the values are passed back via [onComplete]
+  /// and end up in `route_stops.customFields` on the backend.
+  final List<FieldDefinition> stopFieldDefinitions;
+  final Function(
+    List<File> photos,
+    String? notes,
+    Map<String, dynamic> customFields,
+  ) onComplete;
 
   const DeliveryActionSheet({
     super.key,
     required this.stop,
+    this.stopFieldDefinitions = const [],
     required this.onComplete,
   });
 
@@ -23,6 +33,19 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
   final _notesController = TextEditingController();
   final _picker = ImagePicker();
   bool _isCapturing = false;
+  Map<String, dynamic> _customFields = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-load any values the driver may have captured before (e.g. saved
+    // partial progress on the same stop) so the form doesn't appear empty
+    // on re-open.
+    final initial = widget.stop.customFields;
+    if (initial != null && initial.isNotEmpty) {
+      _customFields = {...initial};
+    }
+  }
 
   @override
   void dispose() {
@@ -78,9 +101,35 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
       return;
     }
 
+    // Block submit if any required custom field is missing — the backend
+    // would reject COMPLETED transition with a 400 anyway, fail fast in the
+    // UI so the driver sees a clear message.
+    final missing = findMissingRequired(widget.stopFieldDefinitions, _customFields);
+    if (missing.isNotEmpty) {
+      final labels = widget.stopFieldDefinitions
+          .where((d) => missing.contains(d.code))
+          .map((d) => d.label)
+          .join(', ');
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Faltan datos'),
+          content: Text('Completa los campos obligatorios: $labels'),
+          actions: [
+            PrimaryButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     widget.onComplete(
       _photos,
       _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      _customFields,
     );
   }
 
@@ -207,6 +256,20 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                 ],
 
                 const SizedBox(height: 20),
+
+                // Custom fields editor (entity=route_stops + showInMobile=true).
+                // Only renders when the company has configured stop-level custom
+                // fields visible in mobile.
+                if (widget.stopFieldDefinitions.isNotEmpty) ...[
+                  CustomFieldsForm(
+                    definitions: widget.stopFieldDefinitions,
+                    initialValues: _customFields,
+                    onChanged: (values) {
+                      setState(() => _customFields = values);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                ],
 
                 // Notes field
                 const Text('Notas (opcional)').semiBold().small(),

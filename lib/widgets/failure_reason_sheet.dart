@@ -6,19 +6,38 @@ import '../models/models.dart';
 
 class FailureReasonSheet extends StatefulWidget {
   final RouteStop stop;
+  /// When the company configured a workflow state (e.g. "Entrega fallida")
+  /// with custom `reasonOptions`, pass it here. The sheet renders those
+  /// options instead of the hard-coded [FailureReason] enum, and returns
+  /// the selected option as `customReason` (String) in the result record.
+  /// When null, the sheet falls back to the legacy enum-based flow.
+  final WorkflowState? targetWorkflowState;
 
-  const FailureReasonSheet({super.key, required this.stop});
+  const FailureReasonSheet({
+    super.key,
+    required this.stop,
+    this.targetWorkflowState,
+  });
 
   @override
   State<FailureReasonSheet> createState() => _FailureReasonSheetState();
 }
 
 class _FailureReasonSheetState extends State<FailureReasonSheet> {
+  // Legacy path: enum reason. Used when [targetWorkflowState] is null.
   FailureReason? _selectedReason;
+  // Workflow path: free-text reason picked from workflow.reasonOptions.
+  String? _selectedCustomReason;
   final _notesController = TextEditingController();
   final List<File> _photos = [];
   final _picker = ImagePicker();
   bool _isCapturing = false;
+
+  bool get _isWorkflowMode => widget.targetWorkflowState != null;
+  List<String> get _workflowReasons =>
+      widget.targetWorkflowState?.reasonOptions ?? const [];
+  bool get _hasSelection =>
+      _isWorkflowMode ? _selectedCustomReason != null : _selectedReason != null;
 
   @override
   void dispose() {
@@ -56,7 +75,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
   }
 
   void _confirm() {
-    if (_selectedReason == null) {
+    if (!_hasSelection) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -73,8 +92,9 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       return;
     }
 
-    // Require notes for "OTHER" reason
-    if (_selectedReason == FailureReason.other &&
+    // Legacy "OTHER" path: enforce notes so the failure has a real reason.
+    if (!_isWorkflowMode &&
+        _selectedReason == FailureReason.other &&
         _notesController.text.trim().isEmpty) {
       showDialog(
         context: context,
@@ -92,8 +112,32 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       return;
     }
 
+    // Workflow mode: only require notes if the workflow state explicitly
+    // demands it (requiresNotes flag set by the operator in the dashboard).
+    if (_isWorkflowMode &&
+        widget.targetWorkflowState!.requiresNotes &&
+        _notesController.text.trim().isEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Notas requeridas'),
+          content: const Text('Este estado requiere agregar una nota.'),
+          actions: [
+            PrimaryButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     Navigator.pop(context, (
-      reason: _selectedReason!,
+      // Legacy enum reason — null when in workflow mode.
+      reason: _selectedReason,
+      // Workflow string reason — null when in legacy mode.
+      customReason: _selectedCustomReason,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
@@ -202,67 +246,117 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
 
                   const SizedBox(height: 10),
 
-                  // Reason chips in a wrap
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: FailureReason.values.map((reason) {
-                      final isSelected = _selectedReason == reason;
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedReason = reason),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? StatusColors.failedBackground(theme.brightness)
-                                : theme.colorScheme.muted,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isSelected
-                                  ? theme.colorScheme.destructive
-                                  : Colors.transparent,
-                              width: 1.5,
+                  // Reason chips in a wrap. In workflow mode we render the
+                  // operator-defined reasonOptions (free text). In legacy
+                  // mode we render the hard-coded FailureReason enum with
+                  // icons for visual hint.
+                  if (_isWorkflowMode)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _workflowReasons.map((reason) {
+                        final isSelected = _selectedCustomReason == reason;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedCustomReason = reason),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _reasonIcon(reason),
-                                size: 18,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? StatusColors.failedBackground(theme.brightness)
+                                  : theme.colorScheme.muted,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
                                 color: isSelected
                                     ? theme.colorScheme.destructive
-                                    : theme.colorScheme.mutedForeground,
+                                    : Colors.transparent,
+                                width: 1.5,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                reason.label,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
+                            ),
+                            child: Text(
+                              reason,
+                              style: TextStyle(
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? theme.colorScheme.destructive
+                                    : theme.colorScheme.foreground,
+                              ),
+                            ).small(),
+                          ),
+                        );
+                      }).toList(),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: FailureReason.values.map((reason) {
+                        final isSelected = _selectedReason == reason;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedReason = reason),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? StatusColors.failedBackground(theme.brightness)
+                                  : theme.colorScheme.muted,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected
+                                    ? theme.colorScheme.destructive
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _reasonIcon(reason),
+                                  size: 18,
                                   color: isSelected
                                       ? theme.colorScheme.destructive
-                                      : theme.colorScheme.foreground,
+                                      : theme.colorScheme.mutedForeground,
                                 ),
-                              ).small(),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  reason.label,
+                                  style: TextStyle(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? theme.colorScheme.destructive
+                                        : theme.colorScheme.foreground,
+                                  ),
+                                ).small(),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                        );
+                      }).toList(),
+                    ),
 
                   const SizedBox(height: 20),
 
-                  // Notes field
+                  // Notes field. In workflow mode we follow the workflow's
+                  // requiresNotes flag; in legacy "OTHER" mode we always
+                  // require text. Otherwise it's optional context.
                   Text(
-                    _selectedReason == FailureReason.other
-                        ? 'Especifica el motivo'
-                        : 'Notas adicionales (opcional)',
+                    _isWorkflowMode
+                        ? (widget.targetWorkflowState!.requiresNotes
+                            ? 'Notas (requeridas)'
+                            : 'Notas adicionales (opcional)')
+                        : (_selectedReason == FailureReason.other
+                            ? 'Especifica el motivo'
+                            : 'Notas adicionales (opcional)'),
                   ).semiBold().small(),
                   const SizedBox(height: 8),
                   TextField(
@@ -335,13 +429,13 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                   SizedBox(
                     height: 52,
                     child: DestructiveButton(
-                      onPressed: _selectedReason == null ? null : _confirm,
+                      onPressed: _hasSelection ? _confirm : null,
                       child: Text(
                         'Confirmar',
                         style: TextStyle(
-                          color: _selectedReason == null
-                              ? theme.colorScheme.mutedForeground
-                              : null,
+                          color: _hasSelection
+                              ? null
+                              : theme.colorScheme.mutedForeground,
                         ),
                       ).semiBold(),
                     ),

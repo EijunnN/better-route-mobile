@@ -13,6 +13,10 @@ class ApiConfig {
   static const String routeStopsEndpoint = '/api/route-stops';
   static const String uploadEndpoint = '/api/upload/presigned-url';
   static const String locationEndpoint = '/api/mobile/driver/location';
+  static const String fieldDefinitionsEndpoint =
+      '/api/mobile/driver/field-definitions';
+  static const String workflowStatesEndpoint =
+      '/api/mobile/driver/workflow-states';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);

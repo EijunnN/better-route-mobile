@@ -34,6 +34,27 @@ class TrackingService {
   final List<Map<String, dynamic>> _pendingLocations = [];
   static const int _maxPendingLocations = 100;
 
+  // Active route context. Set by RouteProvider after loading/refreshing the
+  // route so location pings carry "I'm approaching stop #N" context. The
+  // backend stores it on driver_locations.stop_sequence and the monitoring
+  // dashboard uses it to correlate GPS with planned stops.
+  int? _activeStopSequence;
+  String? _activeJobId;
+  String? _activeRouteId;
+
+  /// Set active stop context. Called from RouteProvider whenever the route
+  /// reloads or the next pending stop changes (e.g. after a stop is
+  /// completed). Pass null to clear (no active route).
+  void setActiveStopContext({
+    int? stopSequence,
+    String? jobId,
+    String? routeId,
+  }) {
+    _activeStopSequence = stopSequence;
+    _activeJobId = jobId;
+    _activeRouteId = routeId;
+  }
+
   /// Start tracking and sending location to server
   Future<bool> startTracking() async {
     if (_isTracking) return true;
@@ -96,14 +117,28 @@ class TrackingService {
       // Ignore battery errors
     }
 
+    // Speed in km/h. We treat anything below 2 km/h as "stopped" — GPS noise
+    // when stationary easily reports 0.5-1 km/h false motion. The backend
+    // shows a moving/stopped indicator on the monitoring map based on this.
+    final speedKmh = (location.speed * 3.6).round();
+    final isMoving = speedKmh >= 2;
+
     final locationData = {
       'latitude': location.latitude,
       'longitude': location.longitude,
       'accuracy': location.accuracy.round(),
-      'speed': (location.speed * 3.6).round(), // Convert m/s to km/h
+      'speed': speedKmh,
+      'heading': location.heading.round(),
+      'altitude': location.altitude.round(),
+      'isMoving': isMoving,
       'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'source': 'GPS',
       if (batteryLevel != null) 'batteryLevel': batteryLevel,
+      // Active route context — only included when the driver is on a route.
+      // Backend accepts these as nullable on driver_locations.
+      if (_activeStopSequence != null) 'stopSequence': _activeStopSequence,
+      if (_activeJobId != null) 'jobId': _activeJobId,
+      if (_activeRouteId != null) 'routeId': _activeRouteId,
     };
 
     // Try to send with retry logic

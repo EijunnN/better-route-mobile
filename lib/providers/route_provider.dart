@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/route_service.dart';
 import '../services/api_service.dart';
+import '../services/tracking_service.dart';
 
 /// Route state
 class RouteState {
@@ -48,8 +49,22 @@ class RouteState {
 /// Route notifier
 class RouteNotifier extends StateNotifier<RouteState> {
   final RouteService _routeService;
+  final TrackingService _trackingService = TrackingService();
 
   RouteNotifier(this._routeService) : super(const RouteState());
+
+  /// Push the active route context into TrackingService so location pings
+  /// carry stopSequence/jobId/routeId. Called after every route load and
+  /// after every status change that may shift the "current stop".
+  void _syncTrackingContext(DriverRouteData? data) {
+    final route = data?.route;
+    final current = data?.currentStop;
+    _trackingService.setActiveStopContext(
+      stopSequence: current?.sequence,
+      jobId: route?.jobId,
+      routeId: route?.id,
+    );
+  }
 
   /// Load driver's route
   Future<void> loadRoute({bool refresh = false}) async {
@@ -69,6 +84,7 @@ class RouteNotifier extends StateNotifier<RouteState> {
         isRefreshing: false,
         lastUpdated: DateTime.now(),
       );
+      _syncTrackingContext(data);
     } on ApiException catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -103,12 +119,14 @@ class RouteNotifier extends StateNotifier<RouteState> {
     required String stopId,
     required List<String> evidenceUrls,
     String? notes,
+    Map<String, dynamic>? customFields,
   }) async {
     try {
       await _routeService.completeStop(
         stopId: stopId,
         evidenceUrls: evidenceUrls,
         notes: notes,
+        customFields: customFields,
       );
       await refresh();
       return true;

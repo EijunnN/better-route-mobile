@@ -7,7 +7,14 @@ class LocationData {
   final double latitude;
   final double longitude;
   final double accuracy;
-  final double speed;
+  final double speed; // meters/second from Geolocator
+  /// Bearing/heading in degrees (0-360). The backend persists it on
+  /// `driver_locations.heading` and the monitoring map uses it to render the
+  /// directional arrow on the driver marker.
+  final double heading;
+  /// Altitude in meters. Geolocator returns 0 when unavailable; the backend
+  /// accepts null/0 indistinctly.
+  final double altitude;
   final DateTime timestamp;
 
   LocationData({
@@ -15,6 +22,8 @@ class LocationData {
     required this.longitude,
     required this.accuracy,
     required this.speed,
+    required this.heading,
+    required this.altitude,
     required this.timestamp,
   });
 
@@ -24,6 +33,8 @@ class LocationData {
       longitude: position.longitude,
       accuracy: position.accuracy,
       speed: position.speed,
+      heading: position.heading,
+      altitude: position.altitude,
       timestamp: position.timestamp,
     );
   }

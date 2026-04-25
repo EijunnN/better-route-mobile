@@ -1,3 +1,4 @@
+import '../core/constants.dart';
 import '../models/field_definition.dart';
 import 'api_service.dart';
 
@@ -12,7 +13,7 @@ class FieldDefinitionService {
 
   /// Fetch field definitions from the API (only showInMobile=true)
   Future<List<FieldDefinition>> getFieldDefinitions() async {
-    final response = await _api.get('/api/mobile/driver/field-definitions');
+    final response = await _api.get(ApiConfig.fieldDefinitionsEndpoint);
     final List<dynamic> data = response.data['data'] as List<dynamic>;
     return data
         .map((json) =>
