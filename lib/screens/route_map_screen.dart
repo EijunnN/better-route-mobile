@@ -8,11 +8,11 @@ import '../core/design/tokens.dart';
 import '../models/route_stop.dart';
 import '../providers/providers.dart';
 import '../router/router.dart';
-import '../widgets/app/app.dart';
+import 'route_map/widgets/widgets.dart';
 
-/// Edge-to-edge map screen. The map fills the entire viewport, chrome is
-/// reduced to a floating top bar (back + recenter) and a draggable bottom
-/// sheet that holds stop details when one is selected.
+/// Edge-to-edge map screen. Map fills the viewport; chrome is reduced
+/// to a top bar with [CircleControl]s and a [SelectedStopSheet] that
+/// slides in when a marker is tapped.
 class RouteMapScreen extends ConsumerStatefulWidget {
   const RouteMapScreen({super.key});
 
@@ -32,13 +32,12 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
-      // No SafeArea here on purpose — map should bleed under the system
-      // chrome. We re-add SafeArea around the floating controls.
+      // No SafeArea on the map layer — bleed under system chrome. The
+      // floating controls re-add their own SafeArea.
       body: Stack(
         children: [
-          // Map layer.
           if (stops.isEmpty)
-            const _EmptyState()
+            const RouteMapEmptyState()
           else
             FlutterMap(
               mapController: _mapController,
@@ -48,9 +47,8 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                 onTap: (_, _) => setState(() => _selectedStopId = null),
               ),
               children: [
-                // Dark tile layer — using CARTO Dark Matter for premium
-                // mood matching the cockpit theme. Falls back to OSM
-                // copyright on tile-server outage.
+                // CARTO Dark tiles for the cockpit aesthetic, OSM as
+                // fallback when the CARTO endpoint hiccups.
                 TileLayer(
                   urlTemplate:
                       'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
@@ -76,33 +74,38 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                 if (locationState.currentLocation != null)
                   MarkerLayer(
                     markers: [
-                      _buildDriverMarker(
-                        locationState.currentLocation!.latitude,
-                        locationState.currentLocation!.longitude,
+                      Marker(
+                        point: LatLng(
+                          locationState.currentLocation!.latitude,
+                          locationState.currentLocation!.longitude,
+                        ),
+                        width: 44,
+                        height: 44,
+                        child: const PulsingDot(),
                       ),
                     ],
                   ),
               ],
             ),
 
-          // Floating top bar.
+          // Floating top controls.
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  _CircleControl(
+                  CircleControl(
                     icon: Icons.arrow_back_rounded,
                     onTap: () => context.pop(),
                   ),
                   const Spacer(),
                   if (stops.isNotEmpty) ...[
-                    _CircleControl(
+                    CircleControl(
                       icon: Icons.fit_screen_rounded,
                       onTap: () => _fitBounds(stops),
                     ),
                     const SizedBox(width: 8),
-                    _CircleControl(
+                    CircleControl(
                       icon: Icons.my_location_rounded,
                       onTap: () => _centerOnDriver(locationState),
                     ),
@@ -112,8 +115,7 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
             ),
           ),
 
-          // Selected stop sheet — slides in from the bottom when a marker
-          // is tapped.
+          // Sliding bottom sheet for the selected stop.
           AnimatedPositioned(
             duration: AppMotion.standard,
             curve: AppMotion.emphasized,
@@ -122,7 +124,7 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
             bottom: _selectedStopId == null ? -260 : 0,
             child: _selectedStopId == null
                 ? const SizedBox.shrink()
-                : _SelectedStopSheet(
+                : SelectedStopSheet(
                     stop: stops.firstWhere(
                       (s) => s.id == _selectedStopId,
                       orElse: () => stops.first,
@@ -191,15 +193,6 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
     );
   }
 
-  Marker _buildDriverMarker(double lat, double lng) {
-    return Marker(
-      point: LatLng(lat, lng),
-      width: 44,
-      height: 44,
-      child: const _PulsingDot(),
-    );
-  }
-
   void _fitBounds(List<RouteStop> stops) {
     if (stops.isEmpty) return;
     final points = stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
@@ -252,215 +245,5 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
       case StopStatus.pending:
         return AppColors.fgPrimary;
     }
-  }
-}
-
-class _CircleControl extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CircleControl({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.bgSurfaceElevated,
-          borderRadius: AppRadius.rFull,
-          border: Border.all(color: AppColors.borderSubtle, width: 1),
-          boxShadow: AppShadows.elevated,
-        ),
-        child: Icon(icon, size: 18, color: AppColors.fgPrimary),
-      ),
-    );
-  }
-}
-
-class _PulsingDot extends StatefulWidget {
-  const _PulsingDot();
-
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, _) {
-        final t = _c.value;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // Outer pulse ring.
-            Opacity(
-              opacity: 1 - t,
-              child: Container(
-                width: 16 + (t * 28),
-                height: 16 + (t * 28),
-                decoration: const BoxDecoration(
-                  color: AppColors.accentLive,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            // Solid core.
-            Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                color: AppColors.accentLive,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.bgBase, width: 2),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _SelectedStopSheet extends StatelessWidget {
-  final RouteStop stop;
-  final VoidCallback onClose;
-  final void Function(RouteStop) onNavigate;
-  final void Function(RouteStop) onDetails;
-
-  const _SelectedStopSheet({
-    required this.stop,
-    required this.onClose,
-    required this.onNavigate,
-    required this.onDetails,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSheet(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '#${stop.sequence}',
-                  style: AppTypography.statMedium.copyWith(fontSize: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    stop.displayName,
-                    style: AppTypography.h4,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                StatusPill(status: stop.status, dense: true),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 14,
-                  color: AppColors.fgTertiary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    stop.address,
-                    style: AppTypography.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: 'Detalle',
-                    icon: Icons.info_outline_rounded,
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.lg,
-                    fullWidth: true,
-                    onPressed: () => onDetails(stop),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AppButton(
-                    label: 'Navegar',
-                    icon: Icons.navigation_rounded,
-                    variant: AppButtonVariant.primary,
-                    size: AppButtonSize.lg,
-                    fullWidth: true,
-                    onPressed: () => onNavigate(stop),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.map_outlined,
-            size: 32,
-            color: AppColors.fgTertiary,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Sin paradas para mostrar',
-            style: AppTypography.body.copyWith(color: AppColors.fgSecondary),
-          ),
-        ],
-      ),
-    );
   }
 }

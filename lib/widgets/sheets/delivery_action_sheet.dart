@@ -2,18 +2,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import '../core/design/tokens.dart';
-import '../models/models.dart';
-import 'app/app.dart';
-import 'custom_fields_form.dart';
+import '../../core/design/tokens.dart';
+import '../../models/models.dart';
+import '../app/app.dart';
+import '../custom_fields_form/custom_fields_form.dart';
+import '../shared/shared.dart';
 
+/// Confirm-delivery sheet shown when the driver moves a stop to
+/// COMPLETED. Captures up to N evidence photos, optional notes, and
+/// the values of the company's stop-level custom fields. Hard-blocks
+/// submit until the photo and required fields are present.
 class DeliveryActionSheet extends StatefulWidget {
   final RouteStop stop;
-  /// Definitions for entity=route_stops + showInMobile=true. The driver
-  /// fills these in this sheet; the values are passed back via [onComplete]
-  /// and end up in `route_stops.customFields` on the backend.
   final List<FieldDefinition> stopFieldDefinitions;
-  final Function(
+  final void Function(
     List<File> photos,
     String? notes,
     Map<String, dynamic> customFields,
@@ -63,16 +65,10 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
         maxWidth: 1920,
         maxHeight: 1080,
       );
-      if (photo != null) {
-        setState(() => _photos.add(File(photo.path)));
-      }
+      if (photo != null) setState(() => _photos.add(File(photo.path)));
     } finally {
       setState(() => _isCapturing = false);
     }
-  }
-
-  void _removePhoto(int index) {
-    setState(() => _photos.removeAt(index));
   }
 
   void _confirmDelivery() {
@@ -91,7 +87,9 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
     }
     widget.onComplete(
       _photos,
-      _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
       _customFields,
     );
   }
@@ -138,43 +136,7 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.statusCompletedBg,
-                      borderRadius: AppRadius.rMd,
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      size: 18,
-                      color: AppColors.accentLive,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Confirmar entrega', style: AppTypography.h4),
-                        Text(
-                          widget.stop.displayName,
-                          style: AppTypography.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Body
+            _Header(stopName: widget.stop.displayName),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -183,61 +145,12 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
                   children: [
                     Text('Foto de evidencia', style: AppTypography.label),
                     const SizedBox(height: 8),
-                    if (_photos.isNotEmpty)
-                      SizedBox(
-                        height: 88,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _photos.length + 1,
-                          itemBuilder: (context, i) {
-                            if (i == _photos.length) {
-                              return _AddPhotoButton(onTap: _takePhoto);
-                            }
-                            return _PhotoThumb(
-                              file: _photos[i],
-                              onRemove: () => _removePhoto(i),
-                            );
-                          },
-                        ),
-                      )
-                    else
-                      GestureDetector(
-                        onTap: _takePhoto,
-                        child: Container(
-                          height: 88,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgSurface,
-                            borderRadius: AppRadius.rLg,
-                            border: Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: _isCapturing
-                              ? const Center(
-                                  child: SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.fgPrimary,
-                                    ),
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.camera_alt_rounded,
-                                      size: 18,
-                                      color: AppColors.fgPrimary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Tomar foto',
-                                      style: AppTypography.button,
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
+                    _PhotoCapture(
+                      photos: _photos,
+                      isCapturing: _isCapturing,
+                      onTake: _takePhoto,
+                      onRemove: (i) => setState(() => _photos.removeAt(i)),
+                    ),
                     if (widget.stopFieldDefinitions.isNotEmpty) ...[
                       const SizedBox(height: 18),
                       CustomFieldsForm(
@@ -286,45 +199,43 @@ class _DeliveryActionSheetState extends State<DeliveryActionSheet> {
   }
 }
 
-class _PhotoThumb extends StatelessWidget {
-  final File file;
-  final VoidCallback onRemove;
+class _Header extends StatelessWidget {
+  final String stopName;
 
-  const _PhotoThumb({required this.file, required this.onRemove});
+  const _Header({required this.stopName});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 10),
-      child: Stack(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Row(
         children: [
-          ClipRRect(
-            borderRadius: AppRadius.rMd,
-            child: Image.file(
-              file,
-              width: 88,
-              height: 88,
-              fit: BoxFit.cover,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.statusCompletedBg,
+              borderRadius: AppRadius.rMd,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              size: 18,
+              color: AppColors.accentLive,
             ),
           ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: const BoxDecoration(
-                  color: AppColors.accentDanger,
-                  shape: BoxShape.circle,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Confirmar entrega', style: AppTypography.h4),
+                Text(
+                  stopName,
+                  style: AppTypography.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                child: const Icon(
-                  Icons.close_rounded,
-                  size: 12,
-                  color: Colors.white,
-                ),
-              ),
+              ],
             ),
           ),
         ],
@@ -333,28 +244,71 @@ class _PhotoThumb extends StatelessWidget {
   }
 }
 
-class _AddPhotoButton extends StatelessWidget {
-  final VoidCallback onTap;
+class _PhotoCapture extends StatelessWidget {
+  final List<File> photos;
+  final bool isCapturing;
+  final VoidCallback onTake;
+  final ValueChanged<int> onRemove;
 
-  const _AddPhotoButton({required this.onTap});
+  const _PhotoCapture({
+    required this.photos,
+    required this.isCapturing,
+    required this.onTake,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (photos.isNotEmpty) {
+      return SizedBox(
+        height: 88,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: photos.length + 1,
+          itemBuilder: (context, i) {
+            if (i == photos.length) {
+              return AddPhotoButton(onTap: onTake);
+            }
+            return PhotoThumb(
+              file: photos[i],
+              onRemove: () => onRemove(i),
+            );
+          },
+        ),
+      );
+    }
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTake,
       child: Container(
-        width: 88,
         height: 88,
         decoration: BoxDecoration(
           color: AppColors.bgSurface,
-          borderRadius: AppRadius.rMd,
+          borderRadius: AppRadius.rLg,
           border: Border.all(color: AppColors.borderSubtle),
         ),
-        child: const Icon(
-          Icons.add_a_photo_rounded,
-          size: 20,
-          color: AppColors.fgSecondary,
-        ),
+        child: isCapturing
+            ? const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.fgPrimary,
+                  ),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.camera_alt_rounded,
+                    size: 18,
+                    color: AppColors.fgPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Tomar foto', style: AppTypography.button),
+                ],
+              ),
       ),
     );
   }
