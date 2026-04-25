@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/constants.dart';
 
 /// Location data wrapper
 class LocationData {
@@ -56,11 +58,42 @@ class LocationService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
 
-  /// Location settings optimized for delivery tracking
-  static const LocationSettings _trackingSettings = LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 20, // Update every 20 meters
-  );
+  /// Platform-aware tracking settings. The foreground notification on
+  /// Android is what makes background location *legal* on Android 10+ —
+  /// without it the OS throttles the app to a few pings/hour. On iOS,
+  /// `allowBackgroundLocationUpdates` plus `UIBackgroundModes: location`
+  /// in Info.plist keeps the position stream alive when the app is in
+  /// background. Distance filter of 25m kills redundant pings when the
+  /// driver is parked at a customer (GPS noise still emits points).
+  static LocationSettings get _trackingSettings {
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: AppConstants.trackingDistanceFilterMeters,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Seguimiento de ruta activo',
+          notificationText: 'Tu ubicación se está enviando para monitorear la entrega.',
+          notificationChannelName: 'Tracking de ruta',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    }
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: AppConstants.trackingDistanceFilterMeters,
+        activityType: ActivityType.automotiveNavigation,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    }
+    return LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: AppConstants.trackingDistanceFilterMeters,
+    );
+  }
 
   /// Check and request location permission
   Future<bool> checkAndRequestPermission() async {
@@ -91,7 +124,9 @@ class LocationService {
       if (!hasPermission) return null;
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: _trackingSettings,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       _lastLocation = LocationData.fromPosition(position);

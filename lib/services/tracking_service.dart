@@ -19,6 +19,13 @@ class TrackingService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
 
+  /// Adaptive cadence — whether the driver is currently moving fast
+  /// enough to warrant the high-frequency interval. Updated on each
+  /// location event and used by [_resolveInterval] to pick between the
+  /// moving (~20s) and stopped (~60s) cadences. Halving the radio
+  /// wake-ups on idle is the single biggest battery win.
+  bool _isMovingMode = true;
+
   // Tracking statistics
   int _successfulSends = 0;
   int _failedSends = 0;
@@ -68,22 +75,25 @@ class TrackingService {
 
     _isTracking = true;
     _lastError = null;
+    _isMovingMode = true;
 
-    // Listen to location updates
+    // Adapt the upload cadence to motion. We don't send on every GPS
+    // tick (geolocator emits roughly once per 25m moved); we only flip
+    // between the moving/stopped intervals when the speed crosses the
+    // threshold, which keeps the timer stable while the driver drives.
     _locationSubscription = _locationService.locationStream.listen(
       (location) {
-        // Location updates are handled by the timer
-        // This ensures we don't send too frequently
+        final speedKmh = location.speed * 3.6;
+        final shouldBeMoving =
+            speedKmh >= AppConstants.trackingMovingThresholdKmh;
+        if (shouldBeMoving != _isMovingMode) {
+          _isMovingMode = shouldBeMoving;
+          _restartTimer();
+        }
       },
     );
 
-    // Start periodic sending
-    _trackingTimer = Timer.periodic(
-      Duration(seconds: AppConstants.trackingIntervalSeconds),
-      (_) => _sendCurrentLocation(),
-    );
-
-    // Send initial location immediately
+    _restartTimer();
     await _sendCurrentLocation();
 
     return true;
@@ -97,6 +107,20 @@ class TrackingService {
     _locationSubscription?.cancel();
     _locationSubscription = null;
     _locationService.stopTracking();
+  }
+
+  Duration get _resolveInterval => Duration(
+        seconds: _isMovingMode
+            ? AppConstants.trackingMovingIntervalSeconds
+            : AppConstants.trackingStoppedIntervalSeconds,
+      );
+
+  void _restartTimer() {
+    _trackingTimer?.cancel();
+    _trackingTimer = Timer.periodic(
+      _resolveInterval,
+      (_) => _sendCurrentLocation(),
+    );
   }
 
   /// Send current location to server

@@ -52,6 +52,14 @@
 	<string>Necesitamos tu ubicacion para hacer seguimiento de tu ruta mientras haces entregas</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Necesitamos tu ubicacion para hacer seguimiento de tu ruta</string>
+	<!-- Background location: required for the position stream to keep
+	     emitting when the app is minimized or screen-locked during a
+	     route. Pairs with allowBackgroundLocationUpdates in AppleSettings. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
 	<!-- Camera permission -->
 	<key>NSCameraUsageDescription</key>
 	<string>Necesitamos acceso a la camara para tomar fotos de evidencia de las entregas</string>

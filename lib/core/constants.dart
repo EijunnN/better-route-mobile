@@ -40,9 +40,14 @@ class AppConstants {
   static const double nearbyDistanceMeters = 100;
   static const int locationUpdateIntervalSeconds = 10;
 
-  // Tracking settings
-  static const int trackingIntervalSeconds = 20; // Send location every 20 seconds
-  static const int trackingDistanceFilterMeters = 15; // Minimum distance to trigger update
-  static const int trackingRetryAttempts = 3; // Number of retry attempts on failure
-  static const int trackingRetryDelaySeconds = 5; // Delay between retries
+  // Tracking — adaptive cadence to balance freshness with battery.
+  // Moving: send every 20s; stopped: every 60s. Switch threshold based
+  // on speed in km/h. Distance filter limits redundant emissions when
+  // the driver is parked at a customer.
+  static const int trackingMovingIntervalSeconds = 20;
+  static const int trackingStoppedIntervalSeconds = 60;
+  static const int trackingMovingThresholdKmh = 2;
+  static const int trackingDistanceFilterMeters = 25;
+  static const int trackingRetryAttempts = 3;
+  static const int trackingRetryDelaySeconds = 5;
 }
