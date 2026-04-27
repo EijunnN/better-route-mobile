@@ -5,7 +5,9 @@ import '../core/design/tokens.dart';
 import '../models/route_stop.dart';
 import '../providers/providers.dart';
 import '../router/router.dart';
+import '../services/location_service.dart';
 import '../widgets/app/app.dart';
+import '../widgets/shared/shared.dart';
 import 'home/widgets/widgets.dart';
 
 /// Driver Cockpit home — agenda-first.
@@ -40,6 +42,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await ref.read(routeProvider.notifier).refresh();
   }
 
+  Future<void> _resolvePermission(LocationPermissionStatus status) async {
+    final notifier = ref.read(locationProvider.notifier);
+    switch (status) {
+      case LocationPermissionStatus.serviceDisabled:
+        await notifier.openLocationSettings();
+        break;
+      case LocationPermissionStatus.deniedForever:
+        await notifier.openAppSettings();
+        break;
+      case LocationPermissionStatus.denied:
+      case LocationPermissionStatus.foregroundOnly:
+        await notifier.requestPermissions();
+        // If we just got a fresh grant, kick tracking again so the
+        // foreground service binds with the upgraded permission.
+        if (!ref.read(locationProvider).isTracking) {
+          await notifier.startTracking();
+          await ref.read(trackingProvider.notifier).startTracking();
+        }
+        break;
+      case LocationPermissionStatus.background:
+        break;
+    }
+  }
+
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -70,6 +96,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final routeState = ref.watch(routeProvider);
+    final permissionStatus =
+        ref.watch(locationProvider.select((s) => s.permissionStatus));
     final stops = _filtered(routeState.stops);
 
     return Scaffold(
@@ -94,6 +122,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: HomeTopBar(
                         driverName: routeState.driver?.name ?? 'Conductor',
                         onLogout: _logout,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: BackgroundPermissionBanner(
+                        status: permissionStatus,
+                        onAction: () => _resolvePermission(permissionStatus),
                       ),
                     ),
                     SliverToBoxAdapter(

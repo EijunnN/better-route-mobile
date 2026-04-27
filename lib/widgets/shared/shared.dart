@@ -4,5 +4,6 @@
 library;
 
 export 'add_photo_button.dart';
+export 'background_permission_banner.dart';
 export 'icon_bubble.dart';
 export 'photo_thumb.dart';

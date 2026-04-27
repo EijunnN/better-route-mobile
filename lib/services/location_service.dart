@@ -4,6 +4,27 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
 
+/// Outcome of a permission request. The caller distinguishes "tracking
+/// is fully usable in background" from "tracking will die the moment
+/// the app is minimized" so the UI can prompt the driver to upgrade.
+enum LocationPermissionStatus {
+  /// Device GPS is off entirely — user must enable it from system settings.
+  serviceDisabled,
+  /// User refused at the prompt. Recoverable: ask again.
+  denied,
+  /// User refused with "don't ask again" (Android) or denied (iOS).
+  /// Only Settings can fix this.
+  deniedForever,
+  /// Foreground only. The route notification will keep tracking alive
+  /// while the screen is on, but minimizing the app or locking the
+  /// screen will stop emissions.
+  foregroundOnly,
+  /// Background-capable — the foreground service can keep emitting
+  /// when the driver minimizes the app or locks the screen. This is
+  /// what we need for a delivery route.
+  background,
+}
+
 /// Location data wrapper
 class LocationData {
   final double latitude;
@@ -58,6 +79,9 @@ class LocationService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
 
+  LocationPermissionStatus _lastPermissionStatus = LocationPermissionStatus.denied;
+  LocationPermissionStatus get lastPermissionStatus => _lastPermissionStatus;
+
   /// Platform-aware tracking settings. The foreground notification on
   /// Android is what makes background location *legal* on Android 10+ —
   /// without it the OS throttles the app to a few pings/hour. On iOS,
@@ -95,27 +119,60 @@ class LocationService {
     );
   }
 
-  /// Check and request location permission
-  Future<bool> checkAndRequestPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return false;
+  /// Run the full permission flow and return the resulting status.
+  ///
+  /// Android 11+ does not allow asking for `ACCESS_BACKGROUND_LOCATION`
+  /// in the same dialog as foreground — the OS forces a two-step flow:
+  /// first prompt for `whileInUse`, then a separate prompt (which
+  /// usually opens system settings) to upgrade to `always`. iOS handles
+  /// the upgrade automatically the first time the app reads location
+  /// in background, so a second call there is a no-op.
+  Future<LocationPermissionStatus> requestPermissionStatus() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return _lastPermissionStatus = LocationPermissionStatus.serviceDisabled;
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return false;
-      }
     }
 
+    if (permission == LocationPermission.denied) {
+      return _lastPermissionStatus = LocationPermissionStatus.denied;
+    }
     if (permission == LocationPermission.deniedForever) {
-      return false;
+      return _lastPermissionStatus = LocationPermissionStatus.deniedForever;
     }
 
-    return true;
+    if (permission == LocationPermission.whileInUse && Platform.isAndroid) {
+      final upgraded = await Geolocator.requestPermission();
+      if (upgraded == LocationPermission.always) {
+        return _lastPermissionStatus = LocationPermissionStatus.background;
+      }
+      return _lastPermissionStatus = LocationPermissionStatus.foregroundOnly;
+    }
+
+    return _lastPermissionStatus = (permission == LocationPermission.always)
+        ? LocationPermissionStatus.background
+        : LocationPermissionStatus.foregroundOnly;
   }
+
+  /// Boolean shim used by callers that only care whether *some* level
+  /// of location access was granted. Prefer [requestPermissionStatus]
+  /// when the caller can react differently to background vs foreground.
+  Future<bool> checkAndRequestPermission() async {
+    final status = await requestPermissionStatus();
+    return status == LocationPermissionStatus.background ||
+        status == LocationPermissionStatus.foregroundOnly;
+  }
+
+  /// Open the app's settings page so the driver can manually upgrade
+  /// to "always" or undo "don't ask again". Returns true if the page
+  /// was opened.
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
+
+  /// Open the device location settings (for serviceDisabled recovery).
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
 
   /// Get current location once
   Future<LocationData?> getCurrentLocation() async {
