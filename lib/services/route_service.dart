@@ -205,28 +205,33 @@ class RouteService {
     required String uploadUrl,
     required String contentType,
   }) async {
+    final dio = Dio();
+    final bytes = await file.readAsBytes();
+
     try {
-      final dio = Dio();
-
-      // Read file bytes
-      final bytes = await file.readAsBytes();
-
       await dio.put(
         uploadUrl,
         data: bytes,
         options: Options(
           headers: {
             'Content-Type': contentType,
-            'Content-Length': bytes.length,
           },
         ),
       );
-
-      // Return the public URL (without query params)
-      final publicUrl = uploadUrl.split('?').first;
-      return publicUrl;
+      // Strip the signed query string before storing the public URL.
+      return uploadUrl.split('?').first;
+    } on DioException catch (e) {
+      // Surface what R2 actually said. Without this, every upload
+      // failure looked like the same generic banner and we couldn't
+      // tell signature mismatch from network drop from 403.
+      final status = e.response?.statusCode;
+      final body = e.response?.data?.toString();
+      final detail = status != null
+          ? 'HTTP $status${body != null && body.isNotEmpty ? ' — $body' : ''}'
+          : (e.message ?? 'desconocido');
+      throw ApiException('Error al subir la imagen: $detail');
     } catch (e) {
-      throw ApiException('Error al subir la imagen');
+      throw ApiException('Error al subir la imagen: $e');
     }
   }
 
