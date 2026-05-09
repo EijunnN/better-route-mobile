@@ -67,12 +67,13 @@ class TimeWindow {
   String get displayText {
     if (!hasWindow) return 'Sin ventana horaria';
 
-    final startStr = start != null
-        ? '${start!.hour.toString().padLeft(2, '0')}:${start!.minute.toString().padLeft(2, '0')}'
-        : '--:--';
-    final endStr = end != null
-        ? '${end!.hour.toString().padLeft(2, '0')}:${end!.minute.toString().padLeft(2, '0')}'
-        : '--:--';
+    String fmt(DateTime dt) {
+      final local = dt.toLocal();
+      return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    }
+
+    final startStr = start != null ? fmt(start!) : '--:--';
+    final endStr = end != null ? fmt(end!) : '--:--';
 
     return '$startStr - $endStr';
   }
@@ -156,6 +157,17 @@ class RouteStop {
   /// from `order?.customFields` which lives on `orders.custom_fields` and
   /// is read-only for the driver (filled by the operator at order creation).
   final Map<String, dynamic>? customFields;
+  /// 1 = primer intento; 2+ = revisita. Se construye en el backend
+  /// considerando tanto el `route_stops.attempt_number` como el conteo
+  /// de `delivery_visits` previas del Order, para que un same-day reopen
+  /// también cuente como reintento.
+  final int attemptNumber;
+  /// Visitas previas registradas para el Order (sin contar la del Stop
+  /// actual cuando ya es terminal). Útil para mensajes contextuales
+  /// ("Este pedido ya tuvo N intentos fallidos").
+  final int priorVisitsCount;
+  /// `true` cuando el Stop debe presentarse como revisita en la UI.
+  final bool isRevisit;
 
   const RouteStop({
     required this.id,
@@ -177,6 +189,9 @@ class RouteStop {
     this.workflowStateLabel,
     this.workflowStateColor,
     this.customFields,
+    this.attemptNumber = 1,
+    this.priorVisitsCount = 0,
+    this.isRevisit = false,
   });
 
   /// Parse latitude/longitude that can be either String or num
@@ -221,6 +236,9 @@ class RouteStop {
       customFields: json['customFields'] != null
           ? Map<String, dynamic>.from(json['customFields'] as Map)
           : null,
+      attemptNumber: (json['attemptNumber'] as num?)?.toInt() ?? 1,
+      priorVisitsCount: (json['priorVisitsCount'] as num?)?.toInt() ?? 0,
+      isRevisit: json['isRevisit'] as bool? ?? false,
     );
   }
 
@@ -237,7 +255,8 @@ class RouteStop {
   /// Estimated arrival time formatted
   String get arrivalTimeDisplay {
     if (estimatedArrival == null) return '--:--';
-    return '${estimatedArrival!.hour.toString().padLeft(2, '0')}:${estimatedArrival!.minute.toString().padLeft(2, '0')}';
+    final local = estimatedArrival!.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
   /// Copy with new status
@@ -261,6 +280,9 @@ class RouteStop {
     String? workflowStateLabel,
     String? workflowStateColor,
     Map<String, dynamic>? customFields,
+    int? attemptNumber,
+    int? priorVisitsCount,
+    bool? isRevisit,
   }) {
     return RouteStop(
       id: id ?? this.id,
@@ -282,6 +304,9 @@ class RouteStop {
       workflowStateLabel: workflowStateLabel ?? this.workflowStateLabel,
       workflowStateColor: workflowStateColor ?? this.workflowStateColor,
       customFields: customFields ?? this.customFields,
+      attemptNumber: attemptNumber ?? this.attemptNumber,
+      priorVisitsCount: priorVisitsCount ?? this.priorVisitsCount,
+      isRevisit: isRevisit ?? this.isRevisit,
     );
   }
 }
