@@ -47,6 +47,10 @@ dependencies:
   # External Apps
   url_launcher: ^6.3.1
 
+  # Push notifications (chat from dispatcher).
+  # External ID is the user.id so the backend can target with include_aliases.
+  onesignal_flutter: ^5.2.9
+
   # Utilities
   intl: ^0.20.2
 

@@ -32,6 +32,12 @@ class StorageKeys {
   static const String companyId = 'company_id';
 }
 
+/// Push notifications (OneSignal). App ID is public by design — the REST
+/// API key lives only on the backend.
+class PushConfig {
+  static const String oneSignalAppId = '35dbded5-641d-47b1-b931-07dad0d49770';
+}
+
 /// App Constants
 class AppConstants {
   static const String appName = 'Entregas';

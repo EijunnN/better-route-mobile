@@ -1,19 +1,24 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'core/constants.dart';
 import 'core/theme.dart';
 import 'router/router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // System UI overlay style is set dynamically based on theme in EntregasApp
+  // OneSignal must be initialized before runApp so the FCM token is
+  // registered as the device boots. Permission prompt + externalId
+  // association happen later (post-login) — see AuthService.
+  OneSignal.Debug.setLogLevel(OSLogLevel.warn);
+  OneSignal.initialize(PushConfig.oneSignalAppId);
 
   runApp(
     const ProviderScope(

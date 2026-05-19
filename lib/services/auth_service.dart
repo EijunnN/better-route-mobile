@@ -1,3 +1,4 @@
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../core/constants.dart';
 import '../models/user.dart';
 import 'api_service.dart';
@@ -24,6 +25,13 @@ class AuthService {
 
       if (user != null && token != null) {
         _currentUser = user;
+        // Re-assert the OneSignal external ID on cold start. OneSignal
+        // persists it across restarts, but a re-login is cheap and
+        // self-heals cases where the SDK was reinstalled or the device
+        // was migrated.
+        try {
+          await OneSignal.login(user.id);
+        } catch (_) {}
         return true;
       }
       return false;
@@ -65,6 +73,16 @@ class AuthService {
         );
       }
 
+      // Associate this device with the driver in OneSignal so the
+      // backend can target push by external_id (= user.id). Permission
+      // prompt happens here too — first login is when notifications
+      // start mattering. Best-effort: a push failure must never block
+      // the login itself.
+      try {
+        await OneSignal.login(authResponse.user.id);
+        await OneSignal.Notifications.requestPermission(true);
+      } catch (_) {}
+
       return authResponse.user;
     } on ApiException {
       rethrow;
@@ -89,6 +107,11 @@ class AuthService {
     } catch (_) {
       // Ignore — clearing the local session is what matters.
     }
+    // Drop the OneSignal external_id so this device stops receiving
+    // pushes addressed to the previous user.
+    try {
+      await OneSignal.logout();
+    } catch (_) {}
     _currentUser = null;
     await _storage.clearAll();
   }
