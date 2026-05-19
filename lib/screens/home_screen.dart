@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,12 +24,14 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   HomeStopFilter _filter = HomeStopFilter.pending;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(routeProvider.notifier).loadRoute();
       ref.read(workflowProvider.notifier).loadStates();
@@ -36,6 +39,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(locationProvider.notifier).startTracking();
       ref.read(trackingProvider.notifier).startTracking();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-check permission level when the app comes back to foreground.
+  /// Without this, a driver who upgrades to "Allow all the time" from
+  /// system settings would see the banner stick around because our
+  /// cached `permissionStatus` is still `foregroundOnly`.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(locationProvider.notifier).checkPermission();
+    }
   }
 
   Future<void> _onRefresh() async {
@@ -51,11 +71,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       case LocationPermissionStatus.deniedForever:
         await notifier.openAppSettings();
         break;
-      case LocationPermissionStatus.denied:
       case LocationPermissionStatus.foregroundOnly:
+        // Android 11+ no permite otorgar "Allow all the time" desde un
+        // diálogo runtime — sólo desde Ajustes. Llamar requestPermission()
+        // ahí no hace nada visible y el botón parecía roto. iOS sí permite
+        // re-prompt programático para upgradear a always.
+        if (Platform.isAndroid) {
+          await notifier.openAppSettings();
+        } else {
+          await notifier.requestPermissions();
+          if (!ref.read(locationProvider).isTracking) {
+            await notifier.startTracking();
+            await ref.read(trackingProvider.notifier).startTracking();
+          }
+        }
+        break;
+      case LocationPermissionStatus.denied:
         await notifier.requestPermissions();
-        // If we just got a fresh grant, kick tracking again so the
-        // foreground service binds with the upgraded permission.
         if (!ref.read(locationProvider).isTracking) {
           await notifier.startTracking();
           await ref.read(trackingProvider.notifier).startTracking();
@@ -130,12 +162,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onAction: () => _resolvePermission(permissionStatus),
                       ),
                     ),
-                    SliverToBoxAdapter(
-                      child: HomeKpiStrip(
-                        allStops: routeState.stops,
-                        metrics: routeState.metrics,
-                      ),
-                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
                     SliverToBoxAdapter(
                       child: HomeFilters(
                         current: _filter,
@@ -160,17 +187,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       )
                     else
-                      SliverList.separated(
-                        itemCount: stops.length,
-                        separatorBuilder: (_, _) => const StopRowDivider(),
-                        itemBuilder: (context, index) {
-                          final stop = stops[index];
-                          return StopRow(
-                            stop: stop,
-                            onTap: () => context
-                                .push(AppRoutes.stopDetailPath(stop.id)),
-                          );
-                        },
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        sliver: SliverList.separated(
+                          itemCount: stops.length,
+                          separatorBuilder: (_, _) => const StopRowDivider(),
+                          itemBuilder: (context, index) {
+                            final stop = stops[index];
+                            return StopRow(
+                              stop: stop,
+                              onTap: () => context
+                                  .push(AppRoutes.stopDetailPath(stop.id)),
+                            );
+                          },
+                        ),
                       ),
                     const SliverToBoxAdapter(child: SizedBox(height: 96)),
                   ],
@@ -186,7 +216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: AppButton(
                   label: 'Abrir mapa de ruta',
                   icon: Icons.map_outlined,
-                  variant: AppButtonVariant.primary,
+                  variant: AppButtonVariant.secondary,
                   size: AppButtonSize.lg,
                   fullWidth: true,
                   onPressed: () => context.push(AppRoutes.routeMap),

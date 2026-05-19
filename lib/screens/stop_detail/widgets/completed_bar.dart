@@ -3,9 +3,11 @@ import '../../../core/design/tokens.dart';
 import '../../../models/route_stop.dart';
 import '../../../widgets/app/app.dart';
 
-/// Sticky bottom bar shown when the stop has reached a terminal state
-/// (completed / failed / skipped). Replaces the action bar — no more
-/// CTAs are valid, just a "back" exit.
+/// Slim bottom bar shown when the stop has reached a terminal state
+/// (completed / failed / skipped). The hero already advertises the
+/// status via [StatusPill] and a [FailureBlock] surfaces the reason —
+/// this bar exists only to keep a thumb-reachable "Volver" CTA, so it
+/// stays low on visual weight.
 class StopDetailCompletedBar extends StatelessWidget {
   final RouteStop stop;
   final VoidCallback onBack;
@@ -25,11 +27,6 @@ class StopDetailCompletedBar extends StatelessWidget {
         : isFailed
             ? AppColors.accentDanger
             : AppColors.fgTertiary;
-    final bg = isCompleted
-        ? AppColors.statusCompletedBg
-        : isFailed
-            ? AppColors.statusFailedBg
-            : AppColors.statusSkippedBg;
     final icon = isCompleted
         ? Icons.check_circle_rounded
         : isFailed
@@ -43,24 +40,26 @@ class StopDetailCompletedBar extends StatelessWidget {
                 : 'Parada omitida');
 
     return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        border: const Border(
+      decoration: const BoxDecoration(
+        color: AppColors.bgBase,
+        border: Border(
           top: BorderSide(color: AppColors.borderSubtle, width: 1),
         ),
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+          padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: 10),
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
-                  style: AppTypography.bodyMedium.copyWith(color: color),
+                  style: AppTypography.bodySmall.copyWith(color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               AppButton(

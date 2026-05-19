@@ -47,7 +47,7 @@ class BackgroundPermissionBanner extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.warning_amber_rounded,
+                  Icons.location_on_outlined,
                   size: 20,
                   color: AppColors.accentWarning,
                 ),
@@ -119,8 +119,8 @@ class BackgroundPermissionBanner extends StatelessWidget {
         return const _Copy(
           title: 'Permitir ubicación siempre',
           subtitle:
-              'Sin "siempre", el seguimiento se detiene cuando minimizás el app.',
-          cta: 'Permitir',
+              'Abrí ajustes y elegí "Permitir siempre" para que el seguimiento no se corte al minimizar.',
+          cta: 'Ajustes',
         );
       case LocationPermissionStatus.background:
         return const _Copy(title: '', subtitle: '', cta: '');

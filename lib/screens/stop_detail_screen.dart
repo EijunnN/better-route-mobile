@@ -68,10 +68,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           children: [
             StopDetailTopBar(
               onBack: () => context.pop(),
-              trailing: CircleAction(
-                icon: Icons.copy_rounded,
-                onTap: () => _copyTrackingId(currentStop),
-              ),
+              trailing: const SizedBox(width: 40),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -79,23 +76,21 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    StopDetailHero(stop: currentStop),
+                    StopDetailHero(
+                      stop: currentStop,
+                      onCopyTracking: () => _copyTrackingId(currentStop),
+                    ),
                     const SizedBox(height: 20),
-                    if (currentStop.timeWindow != null) ...[
+                    if (currentStop.timeWindow?.hasWindow == true) ...[
                       TimeWindowBlock(stop: currentStop),
                       const SizedBox(height: 12),
                     ],
-                    ContactBlock(stop: currentStop, onCall: _callPhone),
-                    const SizedBox(height: 12),
-                    LocationBlock(
+                    StopDetailReceipt(
                       stop: currentStop,
+                      onCall: _callPhone,
                       onMaps: () => _openNavigation(currentStop),
                       onWaze: () => _openWaze(currentStop),
                     ),
-                    if (currentStop.order != null) ...[
-                      const SizedBox(height: 12),
-                      OrderBlock(order: currentStop.order!),
-                    ],
                     if (currentStop.order != null &&
                         currentStop.order!.hasCustomFields) ...[
                       const SizedBox(height: 12),
@@ -201,14 +196,32 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     try {
       final evidenceUrls = <String>[];
       final trackingId = s.order?.trackingId ?? s.id;
+
+      // Upload all photos first. If any one fails, abort the whole
+      // completion flow — the previous behaviour was to silently
+      // discard the failed upload and mark the stop COMPLETED with
+      // empty evidence, leaving the customer with a "delivered"
+      // status and no proof of delivery.
       for (int i = 0; i < photos.length; i++) {
-        final url = await ref.read(routeProvider.notifier).uploadEvidence(
-              photo: photos[i],
-              trackingId: trackingId,
-              index: i + 1,
-            );
-        if (url != null) evidenceUrls.add(url);
+        try {
+          final url = await ref.read(routeProvider.notifier).uploadEvidence(
+                photo: photos[i],
+                trackingId: trackingId,
+                index: i + 1,
+              );
+          evidenceUrls.add(url);
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se pudo subir la foto ${i + 1}. $e'),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+          return;
+        }
       }
+
       final success = await ref.read(routeProvider.notifier).completeStop(
             stopId: s.id,
             evidenceUrls: evidenceUrls,
@@ -221,7 +234,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
         );
       }
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -247,12 +260,23 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       if (result.photos.isNotEmpty) {
         final trackingId = s.order?.trackingId ?? s.id;
         for (int i = 0; i < result.photos.length; i++) {
-          final url = await ref.read(routeProvider.notifier).uploadEvidence(
-                photo: result.photos[i],
-                trackingId: trackingId,
-                index: i + 1,
-              );
-          if (url != null) evidenceUrls.add(url);
+          try {
+            final url = await ref.read(routeProvider.notifier).uploadEvidence(
+                  photo: result.photos[i],
+                  trackingId: trackingId,
+                  index: i + 1,
+                );
+            evidenceUrls.add(url);
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('No se pudo subir la foto ${i + 1}. $e'),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+            return;
+          }
         }
       }
       final success = await ref.read(routeProvider.notifier).failStop(
@@ -327,12 +351,23 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       if (photos.isNotEmpty) {
         final trackingId = s.order?.trackingId ?? s.id;
         for (int i = 0; i < photos.length; i++) {
-          final url = await ref.read(routeProvider.notifier).uploadEvidence(
-                photo: photos[i],
-                trackingId: trackingId,
-                index: i + 1,
-              );
-          if (url != null) evidenceUrls.add(url);
+          try {
+            final url = await ref.read(routeProvider.notifier).uploadEvidence(
+                  photo: photos[i],
+                  trackingId: trackingId,
+                  index: i + 1,
+                );
+            evidenceUrls.add(url);
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('No se pudo subir la foto ${i + 1}. $e'),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+            return;
+          }
         }
       }
       final success = await ref.read(routeProvider.notifier).transitionStop(

@@ -81,6 +81,14 @@ class AuthService {
 
   /// Logout and clear session
   Future<void> logout() async {
+    // Tell the backend first — it flips the driver's app-presence flag so
+    // the monitoring dashboard marks them offline immediately. Best-effort:
+    // a failure here must not block the local logout.
+    try {
+      await _api.post(ApiConfig.logoutEndpoint);
+    } catch (_) {
+      // Ignore — clearing the local session is what matters.
+    }
     _currentUser = null;
     await _storage.clearAll();
   }

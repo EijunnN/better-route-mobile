@@ -8,11 +8,16 @@ import '../app/app.dart';
 import '../shared/shared.dart';
 
 /// Failure reason sheet — dual-mode:
-///  * Legacy ([targetWorkflowState] is null): chip grid of the
+///  * Legacy ([targetWorkflowState] is null): single select over the
 ///    [FailureReason] enum.
-///  * Workflow ([targetWorkflowState] set): chips of the operator-
-///    defined [WorkflowState.reasonOptions]. Result returns
+///  * Workflow ([targetWorkflowState] set): single select over the
+///    operator-defined [WorkflowState.reasonOptions]. Result returns
 ///    `customReason` (String) instead of `reason` (enum).
+///
+/// Uses a "select-row → sub-sheet of options" pattern instead of
+/// inline chips because the workflow reason list can grow per company
+/// and Wrap-of-chips reflows the layout once it doesn't fit on one
+/// row, pushing the action bar around.
 class FailureReasonSheet extends StatefulWidget {
   final RouteStop stop;
   final WorkflowState? targetWorkflowState;
@@ -41,6 +46,10 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
   bool get _hasSelection =>
       _isWorkflowMode ? _selectedCustomReason != null : _selectedReason != null;
 
+  String? get _selectedLabel => _isWorkflowMode
+      ? _selectedCustomReason
+      : _selectedReason?.label;
+
   @override
   void dispose() {
     _notesController.dispose();
@@ -61,6 +70,38 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       if (photo != null) setState(() => _photos.add(File(photo.path)));
     } finally {
       setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<void> _openReasonPicker() async {
+    HapticFeedback.selectionClick();
+    if (_isWorkflowMode) {
+      final picked = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _ReasonOptionsSheet<String>(
+          title: 'Motivo de fallo',
+          options: _workflowReasons,
+          labelOf: (s) => s,
+          isSelected: (s) => s == _selectedCustomReason,
+        ),
+      );
+      if (picked != null) setState(() => _selectedCustomReason = picked);
+    } else {
+      final picked = await showModalBottomSheet<FailureReason>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _ReasonOptionsSheet<FailureReason>(
+          title: 'Motivo de fallo',
+          options: FailureReason.values,
+          labelOf: (r) => r.label,
+          iconOf: _iconFor,
+          isSelected: (r) => r == _selectedReason,
+        ),
+      );
+      if (picked != null) setState(() => _selectedReason = picked);
     }
   }
 
@@ -123,6 +164,25 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
     );
   }
 
+  static IconData _iconFor(FailureReason reason) {
+    switch (reason) {
+      case FailureReason.customerAbsent:
+        return Icons.person_off_outlined;
+      case FailureReason.customerRefused:
+        return Icons.block_outlined;
+      case FailureReason.addressNotFound:
+        return Icons.location_off_outlined;
+      case FailureReason.packageDamaged:
+        return Icons.broken_image_outlined;
+      case FailureReason.rescheduleRequested:
+        return Icons.event_outlined;
+      case FailureReason.unsafeArea:
+        return Icons.warning_amber_outlined;
+      case FailureReason.other:
+        return Icons.more_horiz;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
@@ -143,18 +203,10 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
                   children: [
                     Text('Motivo', style: AppTypography.label),
                     const SizedBox(height: 8),
-                    if (_isWorkflowMode)
-                      _WorkflowReasonChips(
-                        reasons: _workflowReasons,
-                        selected: _selectedCustomReason,
-                        onSelect: (r) =>
-                            setState(() => _selectedCustomReason = r),
-                      )
-                    else
-                      _LegacyReasonChips(
-                        selected: _selectedReason,
-                        onSelect: (r) => setState(() => _selectedReason = r),
-                      ),
+                    _ReasonSelectField(
+                      value: _selectedLabel,
+                      onTap: _openReasonPicker,
+                    ),
                     const SizedBox(height: 18),
                     Text(
                       _isWorkflowMode
@@ -278,130 +330,192 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _WorkflowReasonChips extends StatelessWidget {
-  final List<String> reasons;
-  final String? selected;
-  final ValueChanged<String> onSelect;
+/// Single tap target that shows the current reason (or placeholder)
+/// and a chevron, mirroring the iOS-style "settings row" pattern. The
+/// whole row is tappable; visual states: empty (placeholder text) vs
+/// filled (primary text + filled border).
+class _ReasonSelectField extends StatelessWidget {
+  final String? value;
+  final VoidCallback onTap;
 
-  const _WorkflowReasonChips({
-    required this.reasons,
-    required this.selected,
-    required this.onSelect,
-  });
+  const _ReasonSelectField({required this.value, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: reasons.map((r) {
-        final isSelected = selected == r;
-        return GestureDetector(
-          onTap: () => onSelect(r),
-          child: AnimatedContainer(
-            duration: AppMotion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.statusFailedBg
-                  : AppColors.bgSurface,
-              borderRadius: AppRadius.rFull,
-              border: Border.all(
-                color: isSelected
-                    ? AppColors.accentDanger
-                    : AppColors.borderSubtle,
-              ),
-            ),
-            child: Text(
-              r,
-              style: AppTypography.label.copyWith(
-                color: isSelected
-                    ? AppColors.accentDanger
-                    : AppColors.fgPrimary,
-              ),
-            ),
+    final filled = value != null;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: AppRadius.rMd,
+          border: Border.all(
+            color: filled ? AppColors.borderStrong : AppColors.borderSubtle,
           ),
-        );
-      }).toList(),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value ?? 'Seleccionar motivo',
+                style: AppTypography.body.copyWith(
+                  color: filled
+                      ? AppColors.fgPrimary
+                      : AppColors.fgTertiary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 22,
+              color: AppColors.fgSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _LegacyReasonChips extends StatelessWidget {
-  final FailureReason? selected;
-  final ValueChanged<FailureReason> onSelect;
+/// Generic single-select bottom sheet over a list of options. Designed
+/// to scale: each option is a full-width tap target, vertical scroll
+/// kicks in once the list overflows the sheet's max height. The
+/// generic [T] keeps it reusable for both the [FailureReason] enum and
+/// the workflow's `List<String>` reason options.
+class _ReasonOptionsSheet<T> extends StatelessWidget {
+  final String title;
+  final List<T> options;
+  final String Function(T) labelOf;
+  final IconData Function(T)? iconOf;
+  final bool Function(T) isSelected;
 
-  const _LegacyReasonChips({
-    required this.selected,
-    required this.onSelect,
+  const _ReasonOptionsSheet({
+    required this.title,
+    required this.options,
+    required this.labelOf,
+    required this.isSelected,
+    this.iconOf,
   });
-
-  IconData _iconFor(FailureReason reason) {
-    switch (reason) {
-      case FailureReason.customerAbsent:
-        return Icons.person_off_outlined;
-      case FailureReason.customerRefused:
-        return Icons.block_outlined;
-      case FailureReason.addressNotFound:
-        return Icons.location_off_outlined;
-      case FailureReason.packageDamaged:
-        return Icons.broken_image_outlined;
-      case FailureReason.rescheduleRequested:
-        return Icons.event_outlined;
-      case FailureReason.unsafeArea:
-        return Icons.warning_amber_outlined;
-      case FailureReason.other:
-        return Icons.more_horiz;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: FailureReason.values.map((reason) {
-        final isSelected = selected == reason;
-        return GestureDetector(
-          onTap: () => onSelect(reason),
-          child: AnimatedContainer(
-            duration: AppMotion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.statusFailedBg
-                  : AppColors.bgSurface,
-              borderRadius: AppRadius.rMd,
-              border: Border.all(
-                color: isSelected
-                    ? AppColors.accentDanger
-                    : AppColors.borderSubtle,
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
+
+    return AppSheet(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Row(
+                children: [
+                  Expanded(child: Text(title, style: AppTypography.h4)),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    behavior: HitTestBehavior.opaque,
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: AppColors.fgSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            const SizedBox(height: 4),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+                itemCount: options.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 2),
+                itemBuilder: (context, i) {
+                  final option = options[i];
+                  final selected = isSelected(option);
+                  return _ReasonOptionTile(
+                    label: labelOf(option),
+                    icon: iconOf?.call(option),
+                    selected: selected,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.pop(context, option);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonOptionTile extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ReasonOptionTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.rMd,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          child: Row(
+            children: [
+              if (icon != null) ...[
                 Icon(
-                  _iconFor(reason),
-                  size: 16,
-                  color: isSelected
-                      ? AppColors.accentDanger
+                  icon,
+                  size: 20,
+                  color: selected
+                      ? AppColors.accentLive
                       : AppColors.fgSecondary,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  reason.label,
-                  style: AppTypography.label.copyWith(
-                    color: isSelected
-                        ? AppColors.accentDanger
-                        : AppColors.fgPrimary,
+                const SizedBox(width: 14),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.fgPrimary,
+                    fontWeight:
+                        selected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (selected)
+                const Icon(
+                  Icons.check_rounded,
+                  size: 20,
+                  color: AppColors.accentLive,
+                ),
+            ],
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 }

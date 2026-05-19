@@ -7,6 +7,7 @@ class ApiConfig {
 
   // Endpoints
   static const String loginEndpoint = '/api/auth/login';
+  static const String logoutEndpoint = '/api/auth/logout';
   static const String refreshEndpoint = '/api/auth/refresh';
   static const String myRouteEndpoint = '/api/mobile/driver/my-route';
   static const String myOrdersEndpoint = '/api/mobile/driver/my-orders';

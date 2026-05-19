@@ -199,21 +199,21 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
-  /// Upload evidence photo
-  Future<String?> uploadEvidence({
+  /// Upload evidence photo. Lets exceptions propagate so callers can
+  /// abort the completion flow when the upload fails — silently
+  /// returning `null` was the bug that let drivers mark stops
+  /// COMPLETED with `evidenceUrls = NULL` because every failed
+  /// upload was indistinguishable from "no photo taken".
+  Future<String> uploadEvidence({
     required File photo,
     required String trackingId,
     int? index,
   }) async {
-    try {
-      return await _routeService.uploadEvidencePhoto(
-        photo: photo,
-        trackingId: trackingId,
-        index: index,
-      );
-    } catch (e) {
-      return null;
-    }
+    return await _routeService.uploadEvidencePhoto(
+      photo: photo,
+      trackingId: trackingId,
+      index: index,
+    );
   }
 
   /// Clear error

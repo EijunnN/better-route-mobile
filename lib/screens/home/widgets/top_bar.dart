@@ -32,14 +32,14 @@ class HomeTopBar extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.bgSurfaceElevated,
+              color: AppColors.statusCompletedBg,
               borderRadius: AppRadius.rFull,
-              border: Border.all(color: AppColors.borderSubtle, width: 1),
+              border: Border.all(color: AppColors.accentLive, width: 1.5),
             ),
             alignment: Alignment.center,
             child: Text(
               _initials(driverName),
-              style: AppTypography.label.copyWith(color: AppColors.fgPrimary),
+              style: AppTypography.label.copyWith(color: AppColors.accentLive),
             ),
           ),
           const SizedBox(width: 12),

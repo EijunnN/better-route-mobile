@@ -31,9 +31,13 @@ abstract class AppColors {
   static const Color fgInverse = Color(0xFF0A0A0B); // Text on white CTA
 
   // Accents — used with extreme economy. Each color earns its place.
+  // accentLive is the brand green inspired by the delivery-app reference
+  // sheets (#4AB855). Same green for "active/in-motion" and "completed"
+  // — reinforces the "good outcome = green" pattern across the app.
   static const Color accentPrimary = Color(0xFFFFFFFF);
-  static const Color accentLive = Color(0xFF22D3A2); // Jade — active/in motion
-  static const Color accentLiveDim = Color(0xFF14855F); // For backgrounds
+  static const Color accentLive = Color(0xFF4AB855);
+  static const Color accentLiveDim = Color(0xFF1F4A24); // For backgrounds
+  static const Color accentLiveSoft = Color(0x334AB855); // 20% — tint cards
   static const Color accentWarning = Color(0xFFFFB020);
   static const Color accentWarningDim = Color(0xFF7A5210);
   static const Color accentDanger = Color(0xFFFF5757);
@@ -44,9 +48,9 @@ abstract class AppColors {
   static const Color statusPending = fgTertiary;
   static const Color statusPendingBg = Color(0xFF26262A);
   static const Color statusInProgress = accentLive;
-  static const Color statusInProgressBg = Color(0xFF0F2922);
+  static const Color statusInProgressBg = Color(0xFF12281A);
   static const Color statusCompleted = accentLive;
-  static const Color statusCompletedBg = Color(0xFF0F2922);
+  static const Color statusCompletedBg = Color(0xFF12281A);
   static const Color statusFailed = accentDanger;
   static const Color statusFailedBg = Color(0xFF2A1212);
   static const Color statusSkipped = fgTertiary;

@@ -219,6 +219,13 @@ class _AppButtonState extends State<AppButton>
     final fg = _enabled ? c.fg : AppColors.fgDisabled;
     final bg = _enabled ? c.bg : AppColors.bgSurface;
 
+    // Larger CTAs are pill-shaped (full radius) — small/medium stay
+    // softly rounded to fit inside cards and rows without dominating.
+    final radius = (widget.size == AppButtonSize.lg ||
+            widget.size == AppButtonSize.xl)
+        ? AppRadius.rFull
+        : AppRadius.rMd;
+
     return ScaleTransition(
       scale: _scaleController,
       child: GestureDetector(
@@ -233,7 +240,7 @@ class _AppButtonState extends State<AppButton>
           padding: EdgeInsets.symmetric(horizontal: s.padX),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: AppRadius.rMd,
+            borderRadius: radius,
             border: c.border != null
                 ? Border.all(color: c.border!, width: 1)
                 : null,
