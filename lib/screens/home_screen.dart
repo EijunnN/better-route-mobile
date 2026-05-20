@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/design/tokens.dart';
@@ -206,6 +207,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ],
                 ),
               ),
+      ),
+      // Chat FAB — always reachable for the driver to open the
+      // dispatch thread. Sits above the bottom "Abrir mapa" button by
+      // Flutter's default endFloat geometry, so no overlap.
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.accentLive,
+        foregroundColor: AppColors.fgInverse,
+        elevation: 4,
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          context.push(AppRoutes.chat);
+        },
+        tooltip: 'Chat con despacho',
+        child: const Icon(Icons.chat_bubble_outline_rounded),
       ),
       bottomNavigationBar: routeState.stops.isEmpty
           ? null

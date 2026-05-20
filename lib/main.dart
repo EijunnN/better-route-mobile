@@ -5,6 +5,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'core/constants.dart';
 import 'core/theme.dart';
 import 'router/router.dart';
+import 'services/push_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +20,9 @@ void main() async {
   // association happen later (post-login) — see AuthService.
   OneSignal.Debug.setLogLevel(OSLogLevel.warn);
   OneSignal.initialize(PushConfig.oneSignalAppId);
+  // Click → deep-link to chat; foreground → suppress banner if chat is
+  // already open. The router is wired in when the routerProvider builds.
+  PushRouter().wireOneSignal();
 
   runApp(
     const ProviderScope(

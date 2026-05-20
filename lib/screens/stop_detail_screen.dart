@@ -8,6 +8,7 @@ import '../core/design/tokens.dart';
 import '../models/route_stop.dart';
 import '../models/workflow_state.dart';
 import '../providers/providers.dart';
+import '../router/router.dart';
 import '../widgets/sheets/sheets.dart';
 import 'stop_detail/widgets/widgets.dart';
 
@@ -68,7 +69,14 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           children: [
             StopDetailTopBar(
               onBack: () => context.pop(),
-              trailing: const SizedBox(width: 40),
+              // Quick path to chat from a stop — drivers often need to
+              // ask dispatch about THIS delivery (cliente ausente,
+              // dirección incorrecta), so the entry point belongs in
+              // the stop's own chrome.
+              trailing: CircleAction(
+                icon: Icons.chat_bubble_outline_rounded,
+                onTap: () => context.push(AppRoutes.chat),
+              ),
             ),
             Expanded(
               child: SingleChildScrollView(

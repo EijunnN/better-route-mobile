@@ -19,6 +19,14 @@ class ApiConfig {
   static const String workflowStatesEndpoint =
       '/api/mobile/driver/workflow-states';
 
+  // Chat — driver only ever talks to their own thread. {driverId} ===
+  // the logged-in user's id.
+  static String chatMessages(String driverId) =>
+      '/api/chat/conversations/$driverId/messages';
+  static String chatRead(String driverId) =>
+      '/api/chat/conversations/$driverId/read';
+  static const String realtimeToken = '/api/realtime/token';
+
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);

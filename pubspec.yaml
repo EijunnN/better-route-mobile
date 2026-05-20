@@ -51,6 +51,11 @@ dependencies:
   # External ID is the user.id so the backend can target with include_aliases.
   onesignal_flutter: ^5.2.9
 
+  # Realtime chat — Centrifugo websocket client. Ephemeral lifecycle
+  # (connect on screen open, disconnect 30s after leave/background) so
+  # the socket isn't held open all shift.
+  centrifuge: ^0.18.0
+
   # Utilities
   intl: ^0.20.2
 

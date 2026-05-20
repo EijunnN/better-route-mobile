@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
-import '../screens/splash_screen.dart';
-import '../screens/login_screen.dart';
+import '../screens/chat_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/stop_detail_screen.dart';
+import '../screens/login_screen.dart';
 import '../screens/route_map_screen.dart';
+import '../screens/splash_screen.dart';
+import '../screens/stop_detail_screen.dart';
+import '../services/push_router.dart';
 
 /// Route names
 class AppRoutes {
@@ -15,6 +17,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String routeMap = '/home/map';
   static const String stopDetail = '/stop/:stopId';
+  static const String chat = '/chat';
 
   static String stopDetailPath(String stopId) => '/stop/$stopId';
 }
@@ -23,7 +26,7 @@ class AppRoutes {
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     refreshListenable: _AuthRefreshNotifier(ref),
@@ -131,6 +134,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+
+      // Chat screen — one thread between the driver and dispatch.
+      GoRoute(
+        path: AppRoutes.chat,
+        name: 'chat',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const ChatScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
     ],
 
     // Error page
@@ -163,6 +179,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
   );
+
+  // Hand the router to the push bridge so a tapped chat notification
+  // can deep-link in. Safe to call on every recreation — idempotent.
+  PushRouter().attachRouter(router);
+  return router;
 });
 
 /// Helper to refresh router when auth state changes
