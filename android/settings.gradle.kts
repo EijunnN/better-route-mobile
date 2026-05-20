@@ -21,6 +21,12 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Processes android/app/google-services.json into Android string
+    // resources that OneSignal's bundled FCM client reads at runtime.
+    // We deliberately do NOT depend on firebase-bom or any
+    // firebase-* library directly — OneSignal pulls only what it
+    // needs and we don't want analytics we didn't ask for.
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 include(":app")

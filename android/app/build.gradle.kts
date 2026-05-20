@@ -3,6 +3,10 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Activates Google Services processing for this module so
+    // google-services.json gets turned into Android resources at
+    // build time. Required by OneSignal's FCM registration path.
+    id("com.google.gms.google-services")
 }
 
 android {
