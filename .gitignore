@@ -17,6 +17,9 @@ migrate_working_dir/
 .env.*
 !.env.example
 
+# Build-time config — real prod URLs (https/wss). The .example is committed.
+dart_define.json
+
 # Secrets and keys
 *.jks
 *.keystore

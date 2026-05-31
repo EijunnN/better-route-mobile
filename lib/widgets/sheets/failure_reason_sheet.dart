@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,25 +8,48 @@ import '../../models/models.dart';
 import '../app/app.dart';
 import '../shared/shared.dart';
 
-/// Failure reason sheet — dual-mode:
-///  * Legacy ([targetWorkflowState] is null): single select over the
-///    [FailureReason] enum.
-///  * Workflow ([targetWorkflowState] set): single select over the
-///    operator-defined [WorkflowState.reasonOptions]. Result returns
-///    `customReason` (String) instead of `reason` (enum).
+/// Result of the failure sheet. [reason] is the exact per-company policy
+/// string the driver picked (verbatim — never a code).
+typedef FailureResult = ({
+  String reason,
+  String? notes,
+  List<File> photos,
+});
+
+/// Failure reason sheet (rediseño).
 ///
-/// Uses a "select-row → sub-sheet of options" pattern instead of
-/// inline chips because the workflow reason list can grow per company
-/// and Wrap-of-chips reflows the layout once it doesn't fit on one
-/// row, pushing the action bar around.
+/// Spec: `Mobile - Specs.html` § 07 / 10 · Reportar fallo (mirrors the
+/// design's `MobReportarFallo`). The visual:
+///
+///   • Danger overline "NO SE PUDO ENTREGAR" + h3 "¿Qué pasó?"
+///   • Stop summary chip
+///   • Inline radio-card list of reasons (icon + title + radio)
+///   • Optional evidence row (foto, dashed)
+///   • Optional notes textarea
+///   • Amber callout explaining the re-attempt behaviour
+///   • Action bar: Cancelar (secondary) + Reportar fallo (danger)
+///
+/// The reason options are ALWAYS the per-company failure-reason strings
+/// from the delivery policy (`GET /api/mobile/driver/delivery-policy` →
+/// `policy.failureReasons`), surfaced here via [reasons]. The selected
+/// option is returned verbatim so the PATCH stores the exact policy
+/// string the backend advertised — no hard-coded enum, no code mapping.
 class FailureReasonSheet extends StatefulWidget {
   final RouteStop stop;
-  final WorkflowState? targetWorkflowState;
+
+  /// Per-company failure reasons from the delivery policy. The legacy
+  /// caller passes the FAILED workflow state's `reasonOptions`; the
+  /// workflow-transition caller passes the target state's `reasonOptions`.
+  final List<String> reasons;
+
+  /// Whether notes are mandatory (policy `failedRequiresNotes`).
+  final bool requiresNotes;
 
   const FailureReasonSheet({
     super.key,
     required this.stop,
-    this.targetWorkflowState,
+    required this.reasons,
+    this.requiresNotes = false,
   });
 
   @override
@@ -33,22 +57,13 @@ class FailureReasonSheet extends StatefulWidget {
 }
 
 class _FailureReasonSheetState extends State<FailureReasonSheet> {
-  FailureReason? _selectedReason;
-  String? _selectedCustomReason;
+  String? _selectedReason;
   final _notesController = TextEditingController();
   final List<File> _photos = [];
   final _picker = ImagePicker();
   bool _isCapturing = false;
 
-  bool get _isWorkflowMode => widget.targetWorkflowState != null;
-  List<String> get _workflowReasons =>
-      widget.targetWorkflowState?.reasonOptions ?? const [];
-  bool get _hasSelection =>
-      _isWorkflowMode ? _selectedCustomReason != null : _selectedReason != null;
-
-  String? get _selectedLabel => _isWorkflowMode
-      ? _selectedCustomReason
-      : _selectedReason?.label;
+  bool get _hasSelection => _selectedReason != null;
 
   @override
   void dispose() {
@@ -69,39 +84,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       );
       if (photo != null) setState(() => _photos.add(File(photo.path)));
     } finally {
-      setState(() => _isCapturing = false);
-    }
-  }
-
-  Future<void> _openReasonPicker() async {
-    HapticFeedback.selectionClick();
-    if (_isWorkflowMode) {
-      final picked = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) => _ReasonOptionsSheet<String>(
-          title: 'Motivo de fallo',
-          options: _workflowReasons,
-          labelOf: (s) => s,
-          isSelected: (s) => s == _selectedCustomReason,
-        ),
-      );
-      if (picked != null) setState(() => _selectedCustomReason = picked);
-    } else {
-      final picked = await showModalBottomSheet<FailureReason>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) => _ReasonOptionsSheet<FailureReason>(
-          title: 'Motivo de fallo',
-          options: FailureReason.values,
-          labelOf: (r) => r.label,
-          iconOf: _iconFor,
-          isSelected: (r) => r == _selectedReason,
-        ),
-      );
-      if (picked != null) setState(() => _selectedReason = picked);
+      if (mounted) setState(() => _isCapturing = false);
     }
   }
 
@@ -110,26 +93,18 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       _alert('Motivo requerido', 'Seleccioná un motivo para continuar.');
       return;
     }
-    if (!_isWorkflowMode &&
-        _selectedReason == FailureReason.other &&
-        _notesController.text.trim().isEmpty) {
-      _alert('Notas requeridas', 'Especificá el motivo en las notas.');
-      return;
-    }
-    if (_isWorkflowMode &&
-        widget.targetWorkflowState!.requiresNotes &&
-        _notesController.text.trim().isEmpty) {
+    if (widget.requiresNotes && _notesController.text.trim().isEmpty) {
       _alert('Notas requeridas', 'Este estado requiere agregar una nota.');
       return;
     }
-    Navigator.pop(context, (
-      reason: _selectedReason,
-      customReason: _selectedCustomReason,
+    final FailureResult result = (
+      reason: _selectedReason!,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
       photos: _photos,
-    ));
+    );
+    Navigator.pop(context, result);
   }
 
   void _alert(String title, String body) {
@@ -149,7 +124,8 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
               const SizedBox(height: 6),
               Text(
                 body,
-                style: AppTypography.body.copyWith(color: AppColors.fgSecondary),
+                style: AppTypography.body
+                    .copyWith(color: AppColors.fgSecondary),
               ),
               const SizedBox(height: 16),
               AppButton(
@@ -164,29 +140,11 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
     );
   }
 
-  static IconData _iconFor(FailureReason reason) {
-    switch (reason) {
-      case FailureReason.customerAbsent:
-        return Icons.person_off_outlined;
-      case FailureReason.customerRefused:
-        return Icons.block_outlined;
-      case FailureReason.addressNotFound:
-        return Icons.location_off_outlined;
-      case FailureReason.packageDamaged:
-        return Icons.broken_image_outlined;
-      case FailureReason.rescheduleRequested:
-        return Icons.event_outlined;
-      case FailureReason.unsafeArea:
-        return Icons.warning_amber_outlined;
-      case FailureReason.other:
-        return Icons.more_horiz;
-    }
-  }
+  // ── Build ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: AppSheet(
@@ -194,88 +152,250 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Header(stopName: widget.stop.displayName),
+            // Header.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'NO SE PUDO ENTREGAR',
+                          style: AppTypography.label.copyWith(
+                            color: AppColors.danger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('¿Qué pasó?', style: AppTypography.h3),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Esto se reporta al despacho y queda en el '
+                          'registro de la entrega.',
+                          style: AppTypography.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: AppColors.bgSurfaceElevated,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context),
+                      customBorder: const CircleBorder(),
+                      child: const SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: AppColors.fgPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Stop summary.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _StopSummaryChip(stop: widget.stop),
+            ),
+            const SizedBox(height: 14),
+
+            // Body — scrollable.
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Motivo', style: AppTypography.label),
-                    const SizedBox(height: 8),
-                    _ReasonSelectField(
-                      value: _selectedLabel,
-                      onTap: _openReasonPicker,
-                    ),
-                    const SizedBox(height: 18),
+                    // Reasons.
                     Text(
-                      _isWorkflowMode
-                          ? (widget.targetWorkflowState!.requiresNotes
-                              ? 'Notas (requeridas)'
-                              : 'Notas adicionales (opcional)')
-                          : (_selectedReason == FailureReason.other
-                              ? 'Especificá el motivo'
-                              : 'Notas adicionales (opcional)'),
-                      style: AppTypography.label,
+                      'MOTIVO',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.fgTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (widget.reasons.isEmpty)
+                      Text(
+                        'No hay motivos configurados. Pedí al despacho que '
+                        'configure los motivos de fallo en la política de '
+                        'entrega.',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.fgTertiary,
+                        ),
+                      )
+                    else
+                      ...widget.reasons.map(
+                        (s) => _ReasonRow(
+                          icon: Icons.help_outline_rounded,
+                          label: s,
+                          hint: '',
+                          selected: s == _selectedReason,
+                          onTap: () => setState(() => _selectedReason = s),
+                        ),
+                      ),
+
+                    const SizedBox(height: 18),
+
+                    // Evidence row.
+                    Text(
+                      'EVIDENCIA (OPCIONAL)',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.fgTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _EvidenceButton(
+                            label: _photos.isEmpty
+                                ? 'Foto del lugar'
+                                : '${_photos.length} foto'
+                                    '${_photos.length == 1 ? "" : "s"}',
+                            icon: Icons.camera_alt_outlined,
+                            busy: _isCapturing,
+                            onTap: _takePhoto,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_photos.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 88,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _photos.length,
+                          itemBuilder: (context, i) => PhotoThumb(
+                            file: _photos[i],
+                            onRemove: () =>
+                                setState(() => _photos.removeAt(i)),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 18),
+
+                    // Notes.
+                    Text(
+                      'NOTAS (OPCIONAL)',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.fgTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     AppTextField(
                       controller: _notesController,
-                      placeholder: 'Detalles…',
+                      placeholder: 'Detalles para el despacho',
                       maxLines: 3,
                     ),
-                    const SizedBox(height: 18),
-                    Text('Foto de evidencia (opcional)',
-                        style: AppTypography.label),
-                    const SizedBox(height: 8),
-                    if (_photos.isNotEmpty)
-                      SizedBox(
-                        height: 72,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _photos.length + 1,
-                          itemBuilder: (context, i) {
-                            if (i == _photos.length) {
-                              return AddPhotoButton(onTap: _takePhoto, size: 72);
-                            }
-                            return PhotoThumb(
-                              file: _photos[i],
-                              onRemove: () =>
-                                  setState(() => _photos.removeAt(i)),
-                              size: 72,
-                            );
-                          },
+
+                    const SizedBox(height: 14),
+
+                    // Amber callout — reattempt hint.
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warningSoft,
+                        borderRadius: AppRadius.rMd,
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.4),
+                          width: 1,
                         ),
-                      )
-                    else
-                      AppButton(
-                        label: 'Tomar foto',
-                        icon: Icons.camera_alt_rounded,
-                        variant: AppButtonVariant.secondary,
-                        fullWidth: true,
-                        isLoading: _isCapturing,
-                        onPressed: _takePhoto,
                       ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: AppColors.warning,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.fgSecondary,
+                                  fontSize: 12,
+                                  height: 1.5,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                    text: 'El despacho puede pedirte un ',
+                                  ),
+                                  TextSpan(
+                                    text: 'segundo intento',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.fgPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const TextSpan(
+                                    text:
+                                        ' más tarde. Esta parada queda en estado "reintento pendiente".',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+
+            // Action bar.
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-              child: AppButton(
-                label: 'Confirmar fallo',
-                variant: AppButtonVariant.destructive,
-                size: AppButtonSize.lg,
-                fullWidth: true,
-                onPressed: _hasSelection ? _confirm : null,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: AppButton(
-                label: 'Cancelar',
-                variant: AppButtonVariant.ghost,
-                onPressed: () => Navigator.pop(context),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'Cancelar',
+                      variant: AppButtonVariant.secondary,
+                      size: AppButtonSize.lg,
+                      fullWidth: true,
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 16,
+                    child: AppButton(
+                      label: 'Reportar fallo',
+                      icon: Icons.close_rounded,
+                      variant: AppButtonVariant.destructive,
+                      size: AppButtonSize.lg,
+                      fullWidth: true,
+                      onPressed: _confirm,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -285,43 +405,43 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
   }
 }
 
-class _Header extends StatelessWidget {
-  final String stopName;
-
-  const _Header({required this.stopName});
+class _StopSummaryChip extends StatelessWidget {
+  final RouteStop stop;
+  const _StopSummaryChip({required this.stop});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurfaceElevated,
+        borderRadius: AppRadius.rMd,
+      ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.statusFailedBg,
-              borderRadius: AppRadius.rMd,
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              color: AppColors.fgPrimary,
+              shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.close_rounded,
-              size: 18,
-              color: AppColors.accentDanger,
+            alignment: Alignment.center,
+            child: Text(
+              '${stop.sequence}',
+              style: AppTypography.mono.copyWith(
+                color: AppColors.bgBase,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reportar fallo', style: AppTypography.h4),
-                Text(
-                  stopName,
-                  style: AppTypography.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: Text(
+              stop.address,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodyMedium,
             ),
           ),
         ],
@@ -330,188 +450,179 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Single tap target that shows the current reason (or placeholder)
-/// and a chevron, mirroring the iOS-style "settings row" pattern. The
-/// whole row is tappable; visual states: empty (placeholder text) vs
-/// filled (primary text + filled border).
-class _ReasonSelectField extends StatelessWidget {
-  final String? value;
+class _ReasonRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String hint;
+  final bool selected;
   final VoidCallback onTap;
 
-  const _ReasonSelectField({required this.value, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final filled = value != null;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: AppRadius.rMd,
-          border: Border.all(
-            color: filled ? AppColors.borderStrong : AppColors.borderSubtle,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                value ?? 'Seleccionar motivo',
-                style: AppTypography.body.copyWith(
-                  color: filled
-                      ? AppColors.fgPrimary
-                      : AppColors.fgTertiary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: AppColors.fgSecondary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Generic single-select bottom sheet over a list of options. Designed
-/// to scale: each option is a full-width tap target, vertical scroll
-/// kicks in once the list overflows the sheet's max height. The
-/// generic [T] keeps it reusable for both the [FailureReason] enum and
-/// the workflow's `List<String>` reason options.
-class _ReasonOptionsSheet<T> extends StatelessWidget {
-  final String title;
-  final List<T> options;
-  final String Function(T) labelOf;
-  final IconData Function(T)? iconOf;
-  final bool Function(T) isSelected;
-
-  const _ReasonOptionsSheet({
-    required this.title,
-    required this.options,
-    required this.labelOf,
-    required this.isSelected,
-    this.iconOf,
+  const _ReasonRow({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.of(context).size.height * 0.7;
-
-    return AppSheet(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-              child: Row(
-                children: [
-                  Expanded(child: Text(title, style: AppTypography.h4)),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: AppColors.fgSecondary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? AppColors.dangerSoft : AppColors.bgSurfaceElevated,
+        borderRadius: AppRadius.rMd,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.rMd,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            decoration: BoxDecoration(
+              borderRadius: AppRadius.rMd,
+              border: Border.all(
+                color: selected
+                    ? AppColors.danger.withValues(alpha: 0.5)
+                    : AppColors.borderSubtle,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.danger.withValues(alpha: 0.25)
+                        : AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    icon,
+                    size: 14,
+                    color: selected ? AppColors.danger : AppColors.fgSecondary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppTypography.label.copyWith(
+                          color: selected
+                              ? AppColors.danger
+                              : AppColors.fgPrimary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
                       ),
+                      if (hint.isNotEmpty) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          hint,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.fgTertiary,
+                            fontSize: 11.5,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.danger : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.danger
+                          : AppColors.borderStrong,
+                      width: 2,
                     ),
                   ),
-                ],
-              ),
+                  alignment: Alignment.center,
+                  child: selected
+                      ? const SizedBox(
+                          width: 6,
+                          height: 6,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        )
+                      : null,
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
-                itemCount: options.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 2),
-                itemBuilder: (context, i) {
-                  final option = options[i];
-                  final selected = isSelected(option);
-                  return _ReasonOptionTile(
-                    label: labelOf(option),
-                    icon: iconOf?.call(option),
-                    selected: selected,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.pop(context, option);
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _ReasonOptionTile extends StatelessWidget {
+class _EvidenceButton extends StatelessWidget {
   final String label;
-  final IconData? icon;
-  final bool selected;
+  final IconData icon;
+  final bool busy;
   final VoidCallback onTap;
 
-  const _ReasonOptionTile({
+  const _EvidenceButton({
     required this.label,
-    required this.selected,
+    required this.icon,
+    required this.busy,
     required this.onTap,
-    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: AppColors.bgSurfaceElevated,
+      borderRadius: AppRadius.rMd,
       child: InkWell(
-        onTap: onTap,
+        onTap: busy ? null : onTap,
         borderRadius: AppRadius.rMd,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.borderStrong, width: 1),
+            borderRadius: AppRadius.rMd,
+          ),
+          alignment: Alignment.center,
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[
-                Icon(
-                  icon,
-                  size: 20,
-                  color: selected
-                      ? AppColors.accentLive
-                      : AppColors.fgSecondary,
-                ),
-                const SizedBox(width: 14),
-              ],
-              Expanded(
-                child: Text(
-                  label,
-                  style: AppTypography.body.copyWith(
-                    color: AppColors.fgPrimary,
-                    fontWeight:
-                        selected ? FontWeight.w600 : FontWeight.w400,
+              if (busy)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    color: AppColors.fgSecondary,
+                    strokeWidth: 2,
                   ),
+                )
+              else
+                Icon(icon, size: 16, color: AppColors.fgSecondary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppTypography.label.copyWith(
+                  color: AppColors.fgPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              if (selected)
-                const Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: AppColors.accentLive,
-                ),
             ],
           ),
         ),

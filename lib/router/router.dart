@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,22 +6,33 @@ import '../providers/auth_provider.dart';
 import '../screens/chat_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/end_of_day_screen.dart';
+import '../screens/onboarding_screen.dart';
+import '../screens/permissions_screen.dart';
 import '../screens/route_map_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/stop_detail_screen.dart';
+import '../screens/success_screen.dart';
 import '../services/push_router.dart';
+import 'onboarding_bootstrap.dart';
 
 /// Route names
 class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
+  static const String onboarding = '/onboarding';
+  static const String permissions = '/permissions';
   static const String home = '/home';
   static const String routeMap = '/home/map';
   static const String stopDetail = '/stop/:stopId';
+  static const String success = '/stop/:stopId/success';
   static const String chat = '/chat';
+  static const String endOfDay = '/end-of-day';
 
   static String stopDetailPath(String stopId) => '/stop/$stopId';
+  static String successPath(String stopId) => '/stop/$stopId/success';
 }
+
 
 /// Router provider
 final routerProvider = Provider<GoRouter>((ref) {
@@ -28,7 +40,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   final router = GoRouter(
     initialLocation: AppRoutes.splash,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
     refreshListenable: _AuthRefreshNotifier(ref),
     redirect: (context, state) {
       final isAuthenticated = authState.isAuthenticated;
@@ -40,18 +52,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         return currentPath == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Redirect logic
+      // Redirect logic.
+      // While logged in, the user can be on home / detail / routeMap /
+      // chat / onboarding / permissions / end-of-day / success — all
+      // those routes are allowed through. While logged out only login
+      // is allowed.
       final isOnLogin = currentPath == AppRoutes.login;
       final isOnSplash = currentPath == AppRoutes.splash;
 
       if (!isAuthenticated) {
-        // Not logged in - go to login (unless already there)
+        // Not logged in — only login is allowed.
         if (!isOnLogin) return AppRoutes.login;
-      } else {
-        // Logged in - go to home (if on login or splash)
-        if (isOnLogin || isOnSplash) return AppRoutes.home;
+        return null;
       }
 
+      // Authenticated.
+      // First-time user → onboarding → permissions → home.
+      // Already onboarded users skip straight to home.
+      if (isOnLogin || isOnSplash) {
+        if (!OnboardingBootstrap.seen) return AppRoutes.onboarding;
+        return AppRoutes.home;
+      }
       return null;
     },
     routes: [
@@ -75,6 +96,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const LoginScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
+
+      // Onboarding — first-launch slides. Skipped on subsequent
+      // launches via the OnboardingFlag.
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const OnboardingScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
+
+      // Permissions — pre-prompt. Reachable from onboarding finish or
+      // directly from "Configurar manualmente" later.
+      GoRoute(
+        path: AppRoutes.permissions,
+        name: 'permissions',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const PermissionsScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
@@ -133,6 +182,35 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           );
         },
+      ),
+
+      // Success — celebration screen after a stop is completed.
+      GoRoute(
+        path: AppRoutes.success,
+        name: 'success',
+        pageBuilder: (context, state) {
+          final stopId = state.pathParameters['stopId']!;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: SuccessScreen(completedStopId: stopId),
+            transitionsBuilder: (context, animation, secondary, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          );
+        },
+      ),
+
+      // End-of-day — shift close summary.
+      GoRoute(
+        path: AppRoutes.endOfDay,
+        name: 'endOfDay',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const EndOfDayScreen(),
+          transitionsBuilder: (context, animation, secondary, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
       ),
 
       // Chat screen — one thread between the driver and dispatch.

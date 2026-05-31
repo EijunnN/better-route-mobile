@@ -93,22 +93,26 @@ flutter run
 
 ## Configuracion
 
-### URL del Backend
+### URLs del backend
 
-Editar `lib/core/constants.dart`:
+Las URLs **no se editan en el código** — se inyectan en build-time con
+`--dart-define`, y la app **falla al arrancar** (`ApiConfig.assertValid`) si en
+un build de release faltan o no son TLS.
 
-```dart
-class ApiConfig {
-  // Desarrollo - Android Emulator
-  static const String baseUrl = 'http://10.0.2.2:3000';
+- **Desarrollo** (`flutter run`): no hay que configurar nada. En debug,
+  `API_BASE_URL`/`WS_URL` usan por defecto el loopback del emulador Android
+  (`http://10.0.2.2:3000` / `ws://10.0.2.2:8000`). Para un dispositivo físico:
+  `flutter run --dart-define=API_BASE_URL=http://TU-IP:3000`.
+- **Producción / release**: copiá la plantilla, completá tus URLs https/wss, y
+  compilá con el script:
 
-  // Desarrollo - iOS Simulator
-  // static const String baseUrl = 'http://localhost:3000';
+  ```bash
+  cp dart_define.example.json dart_define.json   # editá API_BASE_URL + WS_URL
+  ./scripts/build-release.sh appbundle           # Windows: .\scripts\build-release.ps1
+  ```
 
-  // Produccion
-  // static const String baseUrl = 'https://tu-api.betterroute.com';
-}
-```
+  `dart_define.json` está en `.gitignore` (valores por install); la plantilla
+  `dart_define.example.json` sí se versiona.
 
 ### Configuracion de Tracking
 
@@ -252,8 +256,12 @@ Output: `build/app/outputs/flutter-apk/app-debug.apk`
 
 ### Android APK (Release)
 
+Las builds de release inyectan las URLs de producción desde `dart_define.json`
+(ver [Configuracion](#configuracion)) — la app aborta al arrancar si faltan.
+
 ```bash
-flutter build apk --release
+./scripts/build-release.sh apk         # Windows: .\scripts\build-release.ps1 apk
+# equivalente: flutter build apk --release --dart-define-from-file=dart_define.json
 ```
 
 Output: `build/app/outputs/flutter-apk/app-release.apk`
@@ -261,7 +269,7 @@ Output: `build/app/outputs/flutter-apk/app-release.apk`
 ### Android App Bundle (Play Store)
 
 ```bash
-flutter build appbundle --release
+./scripts/build-release.sh appbundle
 ```
 
 Output: `build/app/outputs/bundle/release/app-release.aab`
@@ -269,7 +277,8 @@ Output: `build/app/outputs/bundle/release/app-release.aab`
 ### iOS (requiere macOS)
 
 ```bash
-flutter build ios --release
+./scripts/build-release.sh ios
+# equivalente: flutter build ios --release --dart-define-from-file=dart_define.json
 ```
 
 ---

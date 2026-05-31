@@ -56,7 +56,7 @@ class DriverLicense {
     this.categories,
   });
 
-  /// Parse categories that can be either a String or List<String>
+  /// Parse categories that can be either a String or `List<String>`.
   static List<String>? _parseCategories(dynamic value) {
     if (value == null) return null;
     if (value is List) return List<String>.from(value);

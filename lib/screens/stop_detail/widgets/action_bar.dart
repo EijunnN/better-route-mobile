@@ -32,9 +32,9 @@ class StopDetailActionBar extends ConsumerWidget {
     final wfState = ref.watch(workflowProvider);
     if (wfState.hasStates) {
       final notifier = ref.read(workflowProvider.notifier);
-      final current = stop.workflowStateId != null
-          ? notifier.findById(stop.workflowStateId!)
-          : notifier.findBySystemState(stop.status.value);
+      // The crystallized state machine has no per-stop surrogate id; the
+      // stop's system status IS the workflow-state code.
+      final current = notifier.findBySystemState(stop.status.value);
       if (current != null) {
         final transitions = notifier.getAvailableTransitions(current.id);
         if (transitions.isNotEmpty) {
@@ -83,15 +83,13 @@ class _DynamicBar extends StatelessWidget {
         return Icons.check_rounded;
       case 'FAILED':
         return Icons.close_rounded;
-      case 'CANCELLED':
-        return Icons.skip_next_rounded;
       default:
         return Icons.circle_outlined;
     }
   }
 
   AppButtonVariant _variant(WorkflowState state, bool isPrimary) {
-    if (state.isFailed || state.isCancelled) return AppButtonVariant.destructive;
+    if (state.isFailed) return AppButtonVariant.destructive;
     if (state.systemState == 'COMPLETED') return AppButtonVariant.live;
     return isPrimary ? AppButtonVariant.primary : AppButtonVariant.secondary;
   }

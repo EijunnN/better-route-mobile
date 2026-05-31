@@ -113,9 +113,17 @@ class LocationNotifier extends StateNotifier<LocationState> {
         permissionStatus: _locationService.lastPermissionStatus,
       );
 
-      _subscription = _locationService.locationStream.listen((location) {
-        state = state.copyWith(currentLocation: location);
-      });
+      _subscription = _locationService.locationStream.listen(
+        (location) {
+          // A fresh fix clears any prior GPS error banner.
+          state = state.copyWith(currentLocation: location, clearError: true);
+        },
+        onError: (error) {
+          // Surface GPS stream failures so the UI can warn the driver that
+          // their position isn't being reported, instead of failing silent.
+          state = state.copyWith(error: 'Señal GPS degradada. $error');
+        },
+      );
 
       // Get initial location
       await getCurrentLocation();

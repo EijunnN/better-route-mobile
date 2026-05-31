@@ -9,7 +9,6 @@ class RouteMetrics {
   final int pendingStops;
   final int inProgressStops;
   final int failedStops;
-  final int skippedStops;
   final int progressPercentage;
   final double totalDistance;
   final double totalDuration;
@@ -24,7 +23,6 @@ class RouteMetrics {
     required this.pendingStops,
     required this.inProgressStops,
     required this.failedStops,
-    required this.skippedStops,
     required this.progressPercentage,
     required this.totalDistance,
     required this.totalDuration,
@@ -41,7 +39,6 @@ class RouteMetrics {
       pendingStops: json['pendingStops'] as int? ?? 0,
       inProgressStops: json['inProgressStops'] as int? ?? 0,
       failedStops: json['failedStops'] as int? ?? 0,
-      skippedStops: json['skippedStops'] as int? ?? 0,
       progressPercentage: json['progressPercentage'] as int? ?? 0,
       totalDistance: (json['totalDistance'] as num?)?.toDouble() ?? 0,
       totalDuration: (json['totalDuration'] as num?)?.toDouble() ?? 0,
@@ -58,7 +55,6 @@ class RouteMetrics {
         pendingStops: 0,
         inProgressStops: 0,
         failedStops: 0,
-        skippedStops: 0,
         progressPercentage: 0,
         totalDistance: 0,
         totalDuration: 0,

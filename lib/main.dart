@@ -4,11 +4,16 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'core/constants.dart';
 import 'core/theme.dart';
+import 'router/onboarding_bootstrap.dart';
 import 'router/router.dart';
 import 'services/push_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Fail closed on misconfiguration: a release build that forgot its
+  // --dart-define URLs crashes here instead of silently using the dev box.
+  ApiConfig.assertValid();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -23,6 +28,12 @@ void main() async {
   // Click → deep-link to chat; foreground → suppress banner if chat is
   // already open. The router is wired in when the routerProvider builds.
   PushRouter().wireOneSignal();
+
+  // Load the "onboarding seen" flag synchronously before the router
+  // ever needs to make a redirect decision. Without this the first
+  // launch flicker would always show home for an instant before
+  // bouncing to onboarding.
+  await OnboardingBootstrap.load();
 
   runApp(
     const ProviderScope(

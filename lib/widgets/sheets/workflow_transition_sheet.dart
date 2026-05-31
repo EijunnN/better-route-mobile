@@ -90,8 +90,7 @@ class _WorkflowTransitionSheetState extends State<WorkflowTransitionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isFailed =
-        widget.targetState.isFailed || widget.targetState.isCancelled;
+    final isFailed = widget.targetState.isFailed;
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -195,7 +194,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFailed = targetState.isFailed || targetState.isCancelled;
+    final isFailed = targetState.isFailed;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: Row(

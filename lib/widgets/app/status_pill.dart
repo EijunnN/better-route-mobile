@@ -68,13 +68,6 @@ class _StatusPillState extends State<StatusPill>
           label: 'Fallida',
           pulse: false,
         );
-      case StopStatus.skipped:
-        return (
-          fg: AppColors.fgTertiary,
-          bg: AppColors.statusSkippedBg,
-          label: 'Omitida',
-          pulse: false,
-        );
     }
   }
 

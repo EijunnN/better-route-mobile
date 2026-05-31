@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/design/tokens.dart';
-import '../../../models/route_stop.dart';
 
 /// Banner shown when the stop is in [StopStatus.failed] state. Surfaces
 /// the human-readable failure reason so the operator (and the driver
 /// re-checking history) sees why it didn't go through.
+///
+/// [reason] is the verbatim per-company policy string stored on the stop
+/// (free text) — rendered directly, no code/enum lookup.
 class FailureBlock extends StatelessWidget {
   final String reason;
 
@@ -12,7 +14,6 @@ class FailureBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reasonEnum = FailureReason.fromString(reason);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -43,7 +44,7 @@ class FailureBlock extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(reasonEnum.label, style: AppTypography.body),
+                Text(reason, style: AppTypography.body),
               ],
             ),
           ),

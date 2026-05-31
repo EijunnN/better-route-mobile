@@ -191,7 +191,11 @@ class TrackingService {
           data: data,
         );
 
-        if (response.statusCode == 201) {
+        // Accept any 2xx. The location endpoint has returned both 200 and
+        // 201 across versions; pinning to ==201 silently dropped otherwise
+        // successful pings into the retry/queue path.
+        final code = response.statusCode ?? 0;
+        if (code >= 200 && code < 300) {
           return true;
         }
       } catch (e) {

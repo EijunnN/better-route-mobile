@@ -64,6 +64,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Lifecycle events can land in the queue *after* dispose() has
+    // already torn the widget down — touching `ref` then throws
+    // "Cannot use ref after the widget was disposed". The mounted
+    // guard short-circuits that race.
+    if (!mounted) return;
     final notifier = ref.read(chatProvider.notifier);
     if (state == AppLifecycleState.resumed) {
       notifier.onAppForegrounded();
@@ -178,7 +183,7 @@ class _ChatTopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.space2,
         AppSpacing.space2,
-        AppSpacing.pageX,
+        AppSpacing.space3,
         AppSpacing.space3,
       ),
       decoration: const BoxDecoration(
@@ -189,17 +194,39 @@ class _ChatTopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded,
-                color: AppColors.fgPrimary, size: 22),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: AppColors.fgPrimary,
+              size: 22,
+            ),
             onPressed: () => context.pop(),
             tooltip: 'Volver',
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
+          // Lime avatar — Despacho identity, with subtle support-icon.
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.limeSoft,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.support_agent_rounded,
+              size: 18,
+              color: AppColors.lime,
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Despacho', style: AppTypography.h4),
+                Text(
+                  'Despacho',
+                  style: AppTypography.h4.copyWith(fontSize: 16),
+                ),
                 const SizedBox(height: 2),
                 Row(
                   children: [

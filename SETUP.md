@@ -25,27 +25,25 @@ cd aea
 flutter pub get
 ```
 
-### 2. Configurar URL del API
+### 2. Configurar URLs del backend
 
-Editar `lib/core/constants.dart`:
+Las URLs **no se editan en el código**: se inyectan en build-time con
+`--dart-define`, y la app **falla al arrancar** (`ApiConfig.assertValid`) si en
+un build de release faltan o no son TLS.
 
-```dart
-class ApiConfig {
-  // Para desarrollo local con emulador Android
-  static const String baseUrl = 'http://10.0.2.2:3000/api';
+- **Desarrollo:** nada que configurar. En debug (`flutter run`) se usan por
+  defecto `http://10.0.2.2:3000` (emulador Android) y `ws://10.0.2.2:8000`.
+  Para un dispositivo físico, pasá tu IP local:
+  `flutter run --dart-define=API_BASE_URL=http://192.168.X.X:3000`.
+- **Producción / release:** copiá la plantilla y completá tus URLs (https/wss):
 
-  // Para desarrollo local con dispositivo fisico
-  // static const String baseUrl = 'http://192.168.X.X:3000/api';
+  ```bash
+  cp dart_define.example.json dart_define.json
+  # editá dart_define.json: API_BASE_URL (https://) y WS_URL (wss://)
+  ```
 
-  // Para produccion
-  // static const String baseUrl = 'https://tu-dominio.com/api';
-}
-```
-
-**Nota sobre URLs:**
-- `10.0.2.2` - IP especial del emulador Android que apunta a localhost del host
-- `localhost` - Solo funciona en iOS Simulator
-- Para dispositivos fisicos, usar la IP local de tu computadora
+  `dart_define.json` está en `.gitignore`; la plantilla `dart_define.example.json`
+  se versiona.
 
 ### 3. Ejecutar la aplicacion
 
@@ -56,8 +54,8 @@ flutter run
 # Compilar APK de debug
 flutter build apk --debug
 
-# Compilar APK de release
-flutter build apk --release
+# Compilar APK/AAB de release (inyecta dart_define.json — ver paso 2)
+./scripts/build-release.sh apk        # o: appbundle / ios
 ```
 
 ## Flujo de Uso
@@ -175,17 +173,13 @@ await routeService.uploadEvidence(file: photo, uploadUrl: presigned.uploadUrl);
 | `IN_PROGRESS` | Conductor en camino/atendiendo |
 | `COMPLETED` | Entregado exitosamente |
 | `FAILED` | No se pudo entregar |
-| `SKIPPED` | Omitido por el conductor |
 
 ## Motivos de No Entrega
 
-- `CUSTOMER_ABSENT` - Cliente ausente
-- `CUSTOMER_REFUSED` - Cliente rechazo la entrega
-- `ADDRESS_NOT_FOUND` - Direccion incorrecta
-- `PACKAGE_DAMAGED` - Paquete danado
-- `RESCHEDULE_REQUESTED` - Solicito reprogramacion
-- `UNSAFE_AREA` - Zona insegura
-- `OTHER` - Otro motivo
+Los motivos **no estan hardcodeados**: cada empresa configura su propia lista
+(texto libre en español) en la politica de entrega, y la app la obtiene de
+`GET /api/mobile/driver/delivery-policy`. El motivo elegido se guarda verbatim
+en la parada (no se usa un codigo fijo).
 
 ## Compilacion para Produccion
 
@@ -201,19 +195,18 @@ keyPassword=<password>
 keyAlias=upload
 storeFile=/path/to/upload-keystore.jks
 
-# Compilar
-flutter build apk --release
-# APK en: build/app/outputs/flutter-apk/app-release.apk
-
-# O App Bundle para Play Store
-flutter build appbundle --release
+# Compilar (inyecta las URLs de prod desde dart_define.json — ver Configuracion)
+./scripts/build-release.sh apk        # APK: build/app/outputs/flutter-apk/app-release.apk
+./scripts/build-release.sh appbundle  # AAB para Play Store
+# Equivalente: flutter build apk --release --dart-define-from-file=dart_define.json
 ```
 
 ### iOS
 
 ```bash
 # Requiere macOS con Xcode
-flutter build ios --release
+./scripts/build-release.sh ios
+# Equivalente: flutter build ios --release --dart-define-from-file=dart_define.json
 
 # Luego abrir en Xcode para firmar y subir a App Store
 open ios/Runner.xcworkspace
@@ -232,8 +225,10 @@ open ios/Runner.xcworkspace
 
 ### Error de conexion
 - Verificar que el backend este corriendo
-- Verificar la URL en `constants.dart`
-- Para emulador Android usar `10.0.2.2` en lugar de `localhost`
+- Debug: la app usa `10.0.2.2:3000` (emulador). Para dispositivo fisico, pasá
+  `--dart-define=API_BASE_URL=http://TU-IP:3000` al `flutter run`
+- Release: confirmá que `dart_define.json` tenga las URLs https/wss correctas
+  (la app aborta al arrancar si faltan)
 
 ### Token expirado
 - La app renueva tokens automaticamente

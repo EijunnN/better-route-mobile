@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -59,12 +61,24 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                 if (stops.length > 1)
                   PolylineLayer(
                     polylines: [
+                      // Lime polyline — same brand vocabulary as the
+                      // splash route, the login key art and the home
+                      // map peek. Stroked thicker than the previous
+                      // muted version so it reads on top of the dark
+                      // CARTO tiles.
                       Polyline(
                         points: stops
                             .map((s) => LatLng(s.latitude, s.longitude))
                             .toList(),
-                        color: AppColors.fgPrimary.withValues(alpha: 0.5),
-                        strokeWidth: 2.5,
+                        color: AppColors.lime.withValues(alpha: 0.18),
+                        strokeWidth: 8,
+                      ),
+                      Polyline(
+                        points: stops
+                            .map((s) => LatLng(s.latitude, s.longitude))
+                            .toList(),
+                        color: AppColors.lime,
+                        strokeWidth: 3,
                       ),
                     ],
                   ),
@@ -114,6 +128,24 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
               ),
             ),
           ),
+
+          // Route summary chip — top centre, glass. Shows the route's
+          // overall shape at a glance ("7 paradas · 4 hechas").
+          if (stops.isNotEmpty)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Center(
+                    child: _RouteSummaryChip(stops: stops),
+                  ),
+                ),
+              ),
+            ),
 
           // Sliding bottom sheet for the selected stop.
           AnimatedPositioned(
@@ -238,12 +270,83 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
         return AppColors.accentLive;
       case StopStatus.failed:
         return AppColors.accentDanger;
-      case StopStatus.skipped:
-        return AppColors.fgTertiary;
       case StopStatus.inProgress:
         return AppColors.accentLive;
       case StopStatus.pending:
         return AppColors.fgPrimary;
     }
+  }
+}
+
+/// Top-centre glass chip summarising the route. Reads from the stops
+/// list directly so it's always in sync with whatever the screen is
+/// rendering on the map.
+class _RouteSummaryChip extends StatelessWidget {
+  final List<RouteStop> stops;
+  const _RouteSummaryChip({required this.stops});
+
+  @override
+  Widget build(BuildContext context) {
+    final done = stops.where((s) => s.status.isDone).length;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${stops.length}',
+                style: AppTypography.mono.copyWith(
+                  color: AppColors.fgPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                stops.length == 1 ? 'parada' : 'paradas',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.fgSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 12,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+              Text(
+                '$done',
+                style: AppTypography.mono.copyWith(
+                  color: AppColors.lime,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                done == 1 ? 'hecha' : 'hechas',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.fgSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

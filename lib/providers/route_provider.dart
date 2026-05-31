@@ -135,10 +135,11 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
-  /// Fail a stop with reason
+  /// Fail a stop with reason. [reason] is the verbatim per-company policy
+  /// string the driver selected.
   Future<bool> failStop({
     required String stopId,
-    required FailureReason reason,
+    required String reason,
     List<String>? evidenceUrls,
     String? notes,
   }) async {
@@ -147,23 +148,6 @@ class RouteNotifier extends StateNotifier<RouteState> {
         stopId: stopId,
         reason: reason,
         evidenceUrls: evidenceUrls,
-        notes: notes,
-      );
-      await refresh();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Skip a stop
-  Future<bool> skipStop({
-    required String stopId,
-    String? notes,
-  }) async {
-    try {
-      await _routeService.skipStop(
-        stopId: stopId,
         notes: notes,
       );
       await refresh();

@@ -18,12 +18,16 @@ class RouteService {
     return DriverRouteData.fromJson(response.data as Map<String, dynamic>);
   }
 
-  /// Update a stop's status
+  /// Update a stop's status.
+  ///
+  /// [failureReason] is the exact per-company policy string the driver
+  /// selected (verbatim — never a code). The backend stores it as free
+  /// text and surfaces it back unchanged.
   Future<RouteStop> updateStopStatus({
     required String stopId,
     required StopStatus status,
     String? notes,
-    FailureReason? failureReason,
+    String? failureReason,
     List<String>? evidenceUrls,
     String? workflowStateId,
     Map<String, dynamic>? customFields,
@@ -37,8 +41,8 @@ class RouteService {
         data['notes'] = notes;
       }
 
-      if (failureReason != null) {
-        data['failureReason'] = failureReason.value;
+      if (failureReason != null && failureReason.isNotEmpty) {
+        data['failureReason'] = failureReason;
       }
 
       if (evidenceUrls != null && evidenceUrls.isNotEmpty) {
@@ -94,10 +98,11 @@ class RouteService {
     );
   }
 
-  /// Fail a stop with reason
+  /// Fail a stop with reason. [reason] is the verbatim per-company policy
+  /// string (from `policy.failureReasons`), not a code.
   Future<RouteStop> failStop({
     required String stopId,
-    required FailureReason reason,
+    required String reason,
     List<String>? evidenceUrls,
     String? notes,
     String? workflowStateId,
@@ -107,20 +112,6 @@ class RouteService {
       status: StopStatus.failed,
       failureReason: reason,
       evidenceUrls: evidenceUrls,
-      notes: notes,
-      workflowStateId: workflowStateId,
-    );
-  }
-
-  /// Skip a stop
-  Future<RouteStop> skipStop({
-    required String stopId,
-    String? notes,
-    String? workflowStateId,
-  }) async {
-    return updateStopStatus(
-      stopId: stopId,
-      status: StopStatus.skipped,
       notes: notes,
       workflowStateId: workflowStateId,
     );

@@ -12,6 +12,11 @@ import 'design/tokens.dart';
 /// NOT on Theme.of(context).colorScheme — the design system is decoupled
 /// from shadcn's theming so we can swap it out later without bleeding
 /// changes through every screen.
+///
+/// Post-2026-05-25 redesign: the [primary]/[accent] now resolve to lime
+/// (`#C5F33A`) through the [AppColors.accentPrimary]/[AppColors.accentLive]
+/// aliases. No field rename here so existing screens keep compiling; the
+/// colour change ripples through automatically.
 class AppTheme {
   static ColorScheme get _scheme => const ColorScheme(
         brightness: Brightness.dark,
@@ -54,7 +59,6 @@ class StatusColors {
   static const inProgress = AppColors.statusInProgress;
   static const completed = AppColors.statusCompleted;
   static const failed = AppColors.statusFailed;
-  static const skipped = AppColors.statusSkipped;
 
   // The "Background(brightness)" overloads originally returned different
   // colors for light/dark. Driver Cockpit is dark-only, so these now
@@ -63,7 +67,6 @@ class StatusColors {
   static dynamic inProgressBackground(_) => AppColors.statusInProgressBg;
   static dynamic completedBackground(_) => AppColors.statusCompletedBg;
   static dynamic failedBackground(_) => AppColors.statusFailedBg;
-  static dynamic skippedBackground(_) => AppColors.statusSkippedBg;
 
   static const notesBg = AppColors.bgSurfaceElevated;
   static const notesAccent = AppColors.accentWarning;

@@ -75,17 +75,6 @@ class ChatService {
     return ChatMessage.fromJson(data);
   }
 
-  /// Mark the thread read. Best-effort: even if the dispatcher endpoint
-  /// is dispatch-only and 403s for the driver, we don't care — the
-  /// unread counter is the dispatcher's own bookkeeping.
-  Future<void> markRead(String driverId) async {
-    try {
-      await _api.post(ApiConfig.chatRead(driverId));
-    } catch (_) {
-      // Silent: the read endpoint is dispatch-scoped on the server.
-    }
-  }
-
   /// Fetch a short-lived Centrifugo connection token. The SDK calls this
   /// via its `getToken` callback on connect and again before expiry.
   Future<String> getRealtimeToken() async {

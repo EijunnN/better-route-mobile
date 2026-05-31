@@ -3,8 +3,7 @@ enum StopStatus {
   pending('PENDING'),
   inProgress('IN_PROGRESS'),
   completed('COMPLETED'),
-  failed('FAILED'),
-  skipped('SKIPPED');
+  failed('FAILED');
 
   final String value;
   const StopStatus(this.value);
@@ -20,31 +19,13 @@ enum StopStatus {
   bool get isInProgress => this == StopStatus.inProgress;
   bool get isCompleted => this == StopStatus.completed;
   bool get isFailed => this == StopStatus.failed;
-  bool get isSkipped => this == StopStatus.skipped;
-  bool get isDone => isCompleted || isFailed || isSkipped;
+  bool get isDone => isCompleted || isFailed;
 }
 
-/// Failure reasons matching backend DELIVERY_FAILURE_REASONS
-enum FailureReason {
-  customerAbsent('CUSTOMER_ABSENT', 'Cliente ausente'),
-  customerRefused('CUSTOMER_REFUSED', 'Cliente rechazo la entrega'),
-  addressNotFound('ADDRESS_NOT_FOUND', 'Direccion incorrecta o no encontrada'),
-  packageDamaged('PACKAGE_DAMAGED', 'Paquete danado'),
-  rescheduleRequested('RESCHEDULE_REQUESTED', 'Cliente solicito reprogramacion'),
-  unsafeArea('UNSAFE_AREA', 'Zona insegura o de dificil acceso'),
-  other('OTHER', 'Otro motivo');
-
-  final String value;
-  final String label;
-  const FailureReason(this.value, this.label);
-
-  static FailureReason fromString(String? value) {
-    return FailureReason.values.firstWhere(
-      (r) => r.value == value,
-      orElse: () => FailureReason.other,
-    );
-  }
-}
+// NOTE: there is intentionally no `FailureReason` enum. Failure reasons
+// are per-company free-text Spanish strings from the delivery policy
+// (`GET /api/mobile/driver/delivery-policy` → `policy.failureReasons`).
+// `route_stops.failureReason` stores the selected string verbatim.
 
 /// Time window for delivery
 class TimeWindow {
@@ -149,9 +130,6 @@ class RouteStop {
   final String? failureReason;
   final List<String>? evidenceUrls;
   final OrderInfo? order;
-  final String? workflowStateId;
-  final String? workflowStateLabel;
-  final String? workflowStateColor;
   /// Values captured by the driver for fields with entity=route_stops.
   /// Backend stores them in `route_stops.custom_fields` (jsonb). Distinct
   /// from `order?.customFields` which lives on `orders.custom_fields` and
@@ -185,9 +163,6 @@ class RouteStop {
     this.failureReason,
     this.evidenceUrls,
     this.order,
-    this.workflowStateId,
-    this.workflowStateLabel,
-    this.workflowStateColor,
     this.customFields,
     this.attemptNumber = 1,
     this.priorVisitsCount = 0,
@@ -230,9 +205,6 @@ class RouteStop {
       order: json['order'] != null
           ? OrderInfo.fromJson(json['order'] as Map<String, dynamic>)
           : null,
-      workflowStateId: json['workflowStateId'] as String?,
-      workflowStateLabel: json['workflowStateLabel'] as String?,
-      workflowStateColor: json['workflowStateColor'] as String?,
       customFields: json['customFields'] != null
           ? Map<String, dynamic>.from(json['customFields'] as Map)
           : null,
@@ -276,9 +248,6 @@ class RouteStop {
     String? failureReason,
     List<String>? evidenceUrls,
     OrderInfo? order,
-    String? workflowStateId,
-    String? workflowStateLabel,
-    String? workflowStateColor,
     Map<String, dynamic>? customFields,
     int? attemptNumber,
     int? priorVisitsCount,
@@ -300,9 +269,6 @@ class RouteStop {
       failureReason: failureReason ?? this.failureReason,
       evidenceUrls: evidenceUrls ?? this.evidenceUrls,
       order: order ?? this.order,
-      workflowStateId: workflowStateId ?? this.workflowStateId,
-      workflowStateLabel: workflowStateLabel ?? this.workflowStateLabel,
-      workflowStateColor: workflowStateColor ?? this.workflowStateColor,
       customFields: customFields ?? this.customFields,
       attemptNumber: attemptNumber ?? this.attemptNumber,
       priorVisitsCount: priorVisitsCount ?? this.priorVisitsCount,

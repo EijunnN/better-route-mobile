@@ -5,9 +5,10 @@ import 'colors.dart';
 /// Typographic scale for Driver Cockpit.
 ///
 /// Two families:
-///  - **Inter Tight** for human content (labels, body, headlines). Picked
-///    over plain Inter for tighter letterforms at large sizes — gives
-///    headlines more presence without a separate display font.
+///  - **Inter** for human content (labels, body, headlines). Aligned 1:1
+///    with the BetterRoute web admin so brand-typography stays consistent
+///    cross-surface. Pre-redesign this was Inter Tight; switched to plain
+///    Inter on 2026-05-25 per the design handoff.
 ///  - **JetBrains Mono** for tabular data (timestamps, IDs, distances,
 ///    coordinates, plate numbers). Anything that benefits from monospace
 ///    alignment in lists.
@@ -21,7 +22,7 @@ abstract class AppTypography {
     double? letterSpacing,
     Color? color,
   }) {
-    return GoogleFonts.interTight(
+    return GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,
       height: height,

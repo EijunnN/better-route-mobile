@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import 'storage_service.dart';
 
@@ -49,13 +50,15 @@ class ApiService {
       ),
     );
 
-    // Add logging in debug mode
+    // Add logging in debug mode. `debugPrint` is the Flutter-blessed
+    // logger that no-ops in release builds, so the API chatter never
+    // ships to production logs.
     _dio.interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
         error: true,
-        logPrint: (o) => print('[API] $o'),
+        logPrint: (o) => debugPrint('[API] $o'),
       ),
     );
   }

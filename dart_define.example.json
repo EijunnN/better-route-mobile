@@ -1,0 +1,4 @@
+{
+  "API_BASE_URL": "https://api.tu-dominio.com",
+  "WS_URL": "wss://realtime.tu-dominio.com/connection/websocket"
+}

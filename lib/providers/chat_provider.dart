@@ -5,6 +5,7 @@ import 'package:centrifuge/centrifuge.dart' as cf;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/constants.dart';
 import '../models/chat_message.dart';
 import '../services/chat_service.dart';
 import 'auth_provider.dart';
@@ -121,10 +122,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     await _ensureConnected();
 
-    // Best-effort. Driver call to /read 403s server-side (dispatch
-    // scope), so this is a no-op for now — kept so the day we add a
-    // driver-side unread counter, the call site is already there.
-    unawaited(_service.markRead(_driverId));
+    // No read-receipt call here: the conversation /read endpoint is
+    // dispatch-scoped and 403s for CONDUCTOR. Unread bookkeeping is the
+    // dispatcher's concern; the driver app has no unread counter.
   }
 
   /// Call from the chat screen's `dispose`.
@@ -359,13 +359,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// Resolve the Centrifugo WS URL. Hardcoded for now to keep parity
-  /// with the dev backend (port 8000); a future env tweak would lift
-  /// this out alongside the API base URL.
-  String _resolveWsUrl() {
-    // Same reachable host as the API for the Android emulator.
-    return 'ws://10.0.2.2:8000/connection/websocket';
-  }
+  /// Resolve the Centrifugo WS URL from build config (see
+  /// [ApiConfig.wsUrl]). Defaults to the dev loopback; production passes
+  /// a `wss://` URL via `--dart-define=WS_URL=...`.
+  String _resolveWsUrl() => ApiConfig.wsUrl;
 
   @override
   void dispose() {

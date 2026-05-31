@@ -32,7 +32,6 @@ class StopRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompleted = stop.status == StopStatus.completed;
-    final isSkipped = stop.status == StopStatus.skipped;
     final isRevisit = stop.isRevisit;
 
     return Material(
@@ -91,8 +90,6 @@ class StopRow extends StatelessWidget {
                         color: isCompleted
                             ? AppColors.fgSecondary
                             : AppColors.fgPrimary,
-                        decoration:
-                            isSkipped ? TextDecoration.lineThrough : null,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

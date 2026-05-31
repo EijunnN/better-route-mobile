@@ -1,9 +1,17 @@
+import 'package:flutter/foundation.dart';
+
 /// API Configuration
 class ApiConfig {
-  // Base URL - change this for production
-  static const String baseUrl = 'http://10.0.2.2:3000'; // Android emulator localhost
-  // static const String baseUrl = 'http://localhost:3000'; // iOS simulator
-  // static const String baseUrl = 'https://your-api.com'; // Production
+  /// Base URL — supplied at build time via `--dart-define=API_BASE_URL=...`.
+  /// In debug builds it defaults to the Android-emulator loopback for local
+  /// dev. In release builds the default is empty so a forgotten define fails
+  /// loudly at startup (see [assertValid]) instead of silently shipping the
+  /// dev box over cleartext. Production builds MUST pass an https URL, e.g.
+  /// `flutter build apk --dart-define=API_BASE_URL=https://api.example.com`.
+  static final String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: kDebugMode ? 'http://10.0.2.2:3000' : '',
+  );
 
   // Endpoints
   static const String loginEndpoint = '/api/auth/login';
@@ -16,20 +24,62 @@ class ApiConfig {
   static const String locationEndpoint = '/api/mobile/driver/location';
   static const String fieldDefinitionsEndpoint =
       '/api/mobile/driver/field-definitions';
-  static const String workflowStatesEndpoint =
-      '/api/mobile/driver/workflow-states';
+  /// Canonical workflow contract. The state machine (states + transitions)
+  /// is crystallized server-side and identical for every company; only the
+  /// per-company presentation (labels, colours, evidence gates, failure
+  /// reasons) varies and ships in `data.policy`. There is no separate
+  /// `/workflow-states` endpoint — this is the single source.
+  static const String deliveryPolicyEndpoint =
+      '/api/mobile/driver/delivery-policy';
 
   // Chat — driver only ever talks to their own thread. {driverId} ===
   // the logged-in user's id.
   static String chatMessages(String driverId) =>
       '/api/chat/conversations/$driverId/messages';
-  static String chatRead(String driverId) =>
-      '/api/chat/conversations/$driverId/read';
   static const String realtimeToken = '/api/realtime/token';
+
+  /// Centrifugo realtime WebSocket URL — supplied at build time via
+  /// `--dart-define=WS_URL=...`. In debug it defaults to the Android-emulator
+  /// loopback (Centrifugo dev port 8000); in release the default is empty so
+  /// a forgotten define is caught by [assertValid]. Production builds MUST
+  /// pass a `wss://` URL.
+  static final String wsUrl = String.fromEnvironment(
+    'WS_URL',
+    defaultValue: kDebugMode ? 'ws://10.0.2.2:8000/connection/websocket' : '',
+  );
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
+
+  /// Fail-closed config guard. Call once at startup (before `runApp`).
+  ///
+  /// A release build that forgot the `--dart-define`s must crash loudly at
+  /// boot rather than silently talk to the dev box over cleartext. We also
+  /// enforce TLS (`https://` / `wss://`) in release so a misconfigured
+  /// production URL can't downgrade traffic to plaintext.
+  static void assertValid() {
+    if (baseUrl.isEmpty) {
+      throw StateError(
+        'API_BASE_URL is not configured. Build with '
+        '--dart-define=API_BASE_URL=https://your-api.example.com',
+      );
+    }
+    if (kReleaseMode) {
+      if (!baseUrl.startsWith('https://')) {
+        throw StateError(
+          'Release builds require an https API_BASE_URL (got "$baseUrl"). '
+          'Build with --dart-define=API_BASE_URL=https://your-api.example.com',
+        );
+      }
+      if (!wsUrl.startsWith('wss://')) {
+        throw StateError(
+          'Release builds require a wss WS_URL (got "$wsUrl"). '
+          'Build with --dart-define=WS_URL=wss://your-host/connection/websocket',
+        );
+      }
+    }
+  }
 }
 
 /// Storage Keys

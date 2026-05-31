@@ -68,7 +68,6 @@ class WorkflowState {
 
   bool get isCompleted => systemState == 'COMPLETED';
   bool get isFailed => systemState == 'FAILED';
-  bool get isCancelled => systemState == 'CANCELLED';
   bool get isPending => systemState == 'PENDING';
   bool get isInProgress => systemState == 'IN_PROGRESS';
 }

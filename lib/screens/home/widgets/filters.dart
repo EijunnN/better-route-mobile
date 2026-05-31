@@ -46,11 +46,13 @@ class HomeFilters extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: selected ? AppColors.fgPrimary : AppColors.bgSurface,
+                  // Lime selection — same vocabulary as every other
+                  // primary affordance post-rediseño.
+                  color: selected ? AppColors.lime : AppColors.bgSurface,
                   borderRadius: AppRadius.rFull,
                   border: Border.all(
                     color: selected
-                        ? AppColors.fgPrimary
+                        ? AppColors.lime
                         : AppColors.borderSubtle,
                     width: 1,
                   ),
@@ -71,7 +73,7 @@ class HomeFilters extends StatelessWidget {
                       counts[f].toString(),
                       style: AppTypography.monoSmall.copyWith(
                         color: selected
-                            ? AppColors.fgInverse.withValues(alpha: 0.6)
+                            ? AppColors.fgInverse.withValues(alpha: 0.65)
                             : AppColors.fgTertiary,
                       ),
                     ),

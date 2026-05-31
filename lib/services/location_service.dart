@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
@@ -78,6 +79,16 @@ class LocationService {
 
   bool _isTracking = false;
   bool get isTracking => _isTracking;
+
+  /// Last error surfaced by the position stream (e.g. the GPS dropped out
+  /// mid-route). Null until the first failure. Cleared when a fresh
+  /// position arrives so the UI can recover.
+  String? _lastGpsError;
+  String? get lastGpsError => _lastGpsError;
+
+  /// True when tracking is running but the stream is currently erroring —
+  /// positions aren't flowing even though the driver thinks they are.
+  bool get isDegraded => _isTracking && _lastGpsError != null;
 
   LocationPermissionStatus _lastPermissionStatus = LocationPermissionStatus.denied;
   LocationPermissionStatus get lastPermissionStatus => _lastPermissionStatus;
@@ -206,11 +217,18 @@ class LocationService {
       locationSettings: _trackingSettings,
     ).listen(
       (position) {
+        // A fresh fix means GPS recovered — clear the degraded flag.
+        _lastGpsError = null;
         _lastLocation = LocationData.fromPosition(position);
         _locationController.add(_lastLocation!);
       },
       onError: (error) {
-        // Continue tracking despite errors
+        // Don't swallow GPS failures: record them, log them, and forward
+        // through the stream so the provider/UI can surface "GPS degraded".
+        // Tracking itself keeps running (the OS may recover the fix).
+        _lastGpsError = error.toString();
+        debugPrint('LocationService GPS stream error: $error');
+        _locationController.addError(error);
       },
     );
 

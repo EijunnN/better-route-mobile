@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/tokens.dart';
 import '../../../models/route_stop.dart';
+import '../../../providers/providers.dart';
 import '../../../widgets/app/app.dart';
 
 /// Slim bottom bar shown when the stop has reached a terminal state
-/// (completed / failed / skipped). The hero already advertises the
-/// status via [StatusPill] and a [FailureBlock] surfaces the reason —
-/// this bar exists only to keep a thumb-reachable "Volver" CTA, so it
-/// stays low on visual weight.
-class StopDetailCompletedBar extends StatelessWidget {
+/// (completed / failed). The hero already advertises the status via
+/// [StatusPill] and a [FailureBlock] surfaces the reason — this bar
+/// exists only to keep a thumb-reachable "Volver" CTA, so it stays low
+/// on visual weight.
+class StopDetailCompletedBar extends ConsumerWidget {
   final RouteStop stop;
   final VoidCallback onBack;
 
@@ -19,25 +21,19 @@ class StopDetailCompletedBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isCompleted = stop.status == StopStatus.completed;
-    final isFailed = stop.status == StopStatus.failed;
-    final color = isCompleted
-        ? AppColors.accentLive
-        : isFailed
-            ? AppColors.accentDanger
-            : AppColors.fgTertiary;
-    final icon = isCompleted
-        ? Icons.check_circle_rounded
-        : isFailed
-            ? Icons.cancel_rounded
-            : Icons.skip_next_rounded;
-    final label = stop.workflowStateLabel ??
-        (isCompleted
-            ? 'Entrega completada'
-            : isFailed
-                ? 'Entrega fallida'
-                : 'Parada omitida');
+    final color = isCompleted ? AppColors.accentLive : AppColors.accentDanger;
+    final icon =
+        isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded;
+    // Label comes from the company delivery policy (the workflow state for
+    // this status), falling back to a sensible default when not loaded.
+    final wfLabel = ref
+        .read(workflowProvider.notifier)
+        .findBySystemState(stop.status.value)
+        ?.label;
+    final label =
+        wfLabel ?? (isCompleted ? 'Entrega completada' : 'Entrega fallida');
 
     return Container(
       decoration: const BoxDecoration(
