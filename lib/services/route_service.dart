@@ -29,7 +29,8 @@ class RouteService {
     String? notes,
     String? failureReason,
     List<String>? evidenceUrls,
-    String? workflowStateId,
+    String? gpsLatitude,
+    String? gpsLongitude,
     Map<String, dynamic>? customFields,
   }) async {
     try {
@@ -49,8 +50,15 @@ class RouteService {
         data['evidenceUrls'] = evidenceUrls;
       }
 
-      if (workflowStateId != null) {
-        data['workflowStateId'] = workflowStateId;
+      // Device GPS at the moment the driver closed the stop. The backend
+      // persists it on delivery_visits for every terminal transition
+      // (COMPLETED/FAILED) for audit/trajectory. Captured device-side and
+      // works without network, so it may be absent when no fix is available.
+      if (gpsLatitude != null) {
+        data['gpsLatitude'] = gpsLatitude;
+      }
+      if (gpsLongitude != null) {
+        data['gpsLongitude'] = gpsLongitude;
       }
 
       // Custom fields captured by the driver (entity=route_stops). Backend
@@ -72,20 +80,21 @@ class RouteService {
   }
 
   /// Start a stop (mark as in progress)
-  Future<RouteStop> startStop(String stopId, {String? workflowStateId}) async {
+  Future<RouteStop> startStop(String stopId) async {
     return updateStopStatus(
       stopId: stopId,
       status: StopStatus.inProgress,
-      workflowStateId: workflowStateId,
     );
   }
 
-  /// Complete a stop with evidence
+  /// Complete a stop with evidence. [gpsLatitude]/[gpsLongitude] are the
+  /// device position at closing time (audit trail), absent when no fix.
   Future<RouteStop> completeStop({
     required String stopId,
     required List<String> evidenceUrls,
     String? notes,
-    String? workflowStateId,
+    String? gpsLatitude,
+    String? gpsLongitude,
     Map<String, dynamic>? customFields,
   }) async {
     return updateStopStatus(
@@ -93,19 +102,22 @@ class RouteService {
       status: StopStatus.completed,
       evidenceUrls: evidenceUrls,
       notes: notes,
-      workflowStateId: workflowStateId,
+      gpsLatitude: gpsLatitude,
+      gpsLongitude: gpsLongitude,
       customFields: customFields,
     );
   }
 
   /// Fail a stop with reason. [reason] is the verbatim per-company policy
   /// string (from `policy.failureReasons`), not a code.
+  /// [gpsLatitude]/[gpsLongitude] are the device position at closing time.
   Future<RouteStop> failStop({
     required String stopId,
     required String reason,
     List<String>? evidenceUrls,
     String? notes,
-    String? workflowStateId,
+    String? gpsLatitude,
+    String? gpsLongitude,
   }) async {
     return updateStopStatus(
       stopId: stopId,
@@ -113,52 +125,9 @@ class RouteService {
       failureReason: reason,
       evidenceUrls: evidenceUrls,
       notes: notes,
-      workflowStateId: workflowStateId,
+      gpsLatitude: gpsLatitude,
+      gpsLongitude: gpsLongitude,
     );
-  }
-
-  /// Update stop with a workflow state transition (generic for dynamic states)
-  Future<RouteStop> transitionStop({
-    required String stopId,
-    required String workflowStateId,
-    required StopStatus status,
-    String? notes,
-    String? failureReason,
-    List<String>? evidenceUrls,
-    Map<String, dynamic>? customFields,
-  }) async {
-    try {
-      final data = <String, dynamic>{
-        'status': status.value,
-        'workflowStateId': workflowStateId,
-      };
-
-      if (notes != null && notes.isNotEmpty) {
-        data['notes'] = notes;
-      }
-
-      if (failureReason != null && failureReason.isNotEmpty) {
-        data['failureReason'] = failureReason;
-      }
-
-      if (evidenceUrls != null && evidenceUrls.isNotEmpty) {
-        data['evidenceUrls'] = evidenceUrls;
-      }
-
-      if (customFields != null && customFields.isNotEmpty) {
-        data['customFields'] = customFields;
-      }
-
-      final response = await _api.patch(
-        '${ApiConfig.routeStopsEndpoint}/$stopId',
-        data: data,
-      );
-
-      final responseData = response.data as Map<String, dynamic>;
-      return RouteStop.fromJson(responseData['data'] as Map<String, dynamic>);
-    } catch (e) {
-      rethrow;
-    }
   }
 
   /// Get presigned URL for uploading evidence

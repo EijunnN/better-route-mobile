@@ -57,13 +57,10 @@ class WorkflowService {
     required List<String> transitionsTo,
     required List<String> failureReasons,
   }) {
-    final (labelKey, colorKey) = _policyKeysFor(code);
+    final labelKey = _labelKeyFor(code);
     final label = policy[labelKey] as String? ?? code;
-    final color = policy[colorKey] as String? ?? '#6B7280';
 
     final completedPhoto = policy['completedRequiresPhoto'] as bool? ?? false;
-    final completedSignature =
-        policy['completedRequiresSignature'] as bool? ?? false;
     final completedNotes = policy['completedRequiresNotes'] as bool? ?? false;
     final failedPhoto = policy['failedRequiresPhoto'] as bool? ?? false;
     final failedNotes = policy['failedRequiresNotes'] as bool? ?? false;
@@ -72,7 +69,6 @@ class WorkflowService {
     final requiresPhoto = code == 'COMPLETED'
         ? completedPhoto
         : (code == 'FAILED' ? failedPhoto : false);
-    final requiresSignature = code == 'COMPLETED' ? completedSignature : false;
     final requiresNotes = code == 'COMPLETED'
         ? completedNotes
         : (code == 'FAILED' ? failedNotes : false);
@@ -84,11 +80,9 @@ class WorkflowService {
       code: code,
       label: label,
       systemState: code,
-      color: color,
       position: position,
       requiresReason: showsReasons && failureReasons.isNotEmpty,
       requiresPhoto: requiresPhoto,
-      requiresSignature: requiresSignature,
       requiresNotes: requiresNotes,
       reasonOptions: showsReasons ? failureReasons : null,
       isTerminal: transitionsTo.isEmpty,
@@ -96,18 +90,16 @@ class WorkflowService {
     );
   }
 
-  (String, String) _policyKeysFor(String code) {
+  String _labelKeyFor(String code) {
     switch (code) {
-      case 'PENDING':
-        return ('labelPending', 'colorPending');
       case 'IN_PROGRESS':
-        return ('labelInProgress', 'colorInProgress');
+        return 'labelInProgress';
       case 'COMPLETED':
-        return ('labelCompleted', 'colorCompleted');
+        return 'labelCompleted';
       case 'FAILED':
-        return ('labelFailed', 'colorFailed');
+        return 'labelFailed';
       default:
-        return ('labelPending', 'colorPending');
+        return 'labelPending';
     }
   }
 

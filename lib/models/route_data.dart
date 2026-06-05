@@ -63,25 +63,6 @@ class RouteMetrics {
         totalValue: 0,
         totalUnits: 0,
       );
-
-  double get progress => totalStops > 0 ? completedStops / totalStops : 0;
-
-  String get distanceDisplay {
-    if (totalDistance < 1000) {
-      return '${totalDistance.toInt()} m';
-    }
-    return '${(totalDistance / 1000).toStringAsFixed(1)} km';
-  }
-
-  String get durationDisplay {
-    final minutes = (totalDuration / 60).round();
-    if (minutes < 60) {
-      return '$minutes min';
-    }
-    final hours = minutes ~/ 60;
-    final remainingMinutes = minutes % 60;
-    return '${hours}h ${remainingMinutes}m';
-  }
 }
 
 /// Route information from backend
@@ -120,11 +101,6 @@ class RouteInfo {
       if (stop.status.isPending) return stop;
     }
     return null;
-  }
-
-  /// Get stops by status
-  List<RouteStop> stopsByStatus(StopStatus status) {
-    return stops.where((s) => s.status == status).toList();
   }
 }
 

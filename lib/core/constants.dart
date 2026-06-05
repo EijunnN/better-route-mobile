@@ -18,12 +18,12 @@ class ApiConfig {
   static const String logoutEndpoint = '/api/auth/logout';
   static const String refreshEndpoint = '/api/auth/refresh';
   static const String myRouteEndpoint = '/api/mobile/driver/my-route';
-  static const String myOrdersEndpoint = '/api/mobile/driver/my-orders';
   static const String routeStopsEndpoint = '/api/route-stops';
   static const String uploadEndpoint = '/api/upload/presigned-url';
   static const String locationEndpoint = '/api/mobile/driver/location';
   static const String fieldDefinitionsEndpoint =
       '/api/mobile/driver/field-definitions';
+
   /// Canonical workflow contract. The state machine (states + transitions)
   /// is crystallized server-side and identical for every company; only the
   /// per-company presentation (labels, colours, evidence gates, failure
@@ -88,6 +88,9 @@ class StorageKeys {
   static const String refreshToken = 'refresh_token';
   static const String user = 'user';
   static const String companyId = 'company_id';
+
+  /// Offline outbox of pending stop closes (SharedPreferences, JSON list).
+  static const String offlineOutbox = 'offline_outbox_v1';
 }
 
 /// Push notifications (OneSignal). App ID is public by design — the REST
@@ -98,13 +101,6 @@ class PushConfig {
 
 /// App Constants
 class AppConstants {
-  static const String appName = 'Entregas';
-  static const String appVersion = '1.0.0';
-
-  // Location settings
-  static const double nearbyDistanceMeters = 100;
-  static const int locationUpdateIntervalSeconds = 10;
-
   // Tracking — adaptive cadence to balance freshness with battery.
   // Moving: send every 20s; stopped: every 60s. Switch threshold based
   // on speed in km/h. Distance filter limits redundant emissions when
@@ -115,4 +111,9 @@ class AppConstants {
   static const int trackingDistanceFilterMeters = 25;
   static const int trackingRetryAttempts = 3;
   static const int trackingRetryDelaySeconds = 5;
+
+  // Offline outbox — how often to retry syncing queued stop closes, and the
+  // retry ceiling before an entry is dropped (with its error surfaced).
+  static const int outboxFlushIntervalSeconds = 30;
+  static const int outboxMaxRetries = 60;
 }

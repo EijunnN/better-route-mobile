@@ -1,366 +1,259 @@
-# BetterRoute Mobile
+# BetterRoute — App del Conductor (Driver Cockpit)
 
-**App movil para conductores de delivery**
-
-Aplicacion Flutter para Android/iOS que permite a los conductores gestionar sus entregas diarias, con tracking GPS en tiempo real.
+**El cockpit del conductor de última milla.** App móvil Flutter (Android / iOS)
+para que el conductor vea su ruta del día, navegue, cierre entregas con
+evidencia y se mantenga conectado con despacho — **incluso en zonas sin señal**.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.10+-02569B?logo=flutter)
-![Dart](https://img.shields.io/badge/Dart-3.0+-0175C2?logo=dart)
+![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)
 ![Riverpod](https://img.shields.io/badge/Riverpod-2.6-blue)
 
+> Es el cliente móvil de la plataforma **BetterRoute**. Habla con el backend
+> Next.js (`/api/mobile/driver/*`, `/api/route-stops/*`, `/api/chat/*`).
+
 ---
 
-## Tabla de Contenidos
+## Tabla de contenidos
 
-- [Caracteristicas](#caracteristicas)
+- [¿Por qué esta app?](#por-qué-esta-app)
+- [Funcionalidades destacadas](#funcionalidades-destacadas)
 - [Requisitos](#requisitos)
-- [Instalacion](#instalacion)
-- [Configuracion](#configuracion)
-- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Cómo levantar el proyecto](#cómo-levantar-el-proyecto)
+- [Configuración](#configuración)
 - [Arquitectura](#arquitectura)
-- [Compilacion](#compilacion)
-- [Uso](#uso)
+- [Compilar para producción](#compilar-para-producción)
+- [Internacionalización (i18n)](#internacionalización-i18n)
+- [Relacionado](#relacionado)
 
 ---
 
-## Caracteristicas
+## ¿Por qué esta app?
 
-### Para el Conductor
-- Ver lista de paradas del dia ordenadas por secuencia
-- Navegar a cada parada con Google Maps o Waze
-- Marcar entregas como completadas o fallidas
-- Capturar foto de evidencia
-- Registrar motivo de no entrega
-- Ver metricas de progreso (completadas/pendientes)
+El conductor es quien ejecuta la operación en la calle, muchas veces con
+guantes, al sol, en movimiento y — sobre todo — **con señal intermitente**. Una
+buena planificación no sirve de nada si la herramienta del conductor lo
+bloquea cuando más la necesita.
+
+Esta app nació con una prioridad clara: **que el conductor nunca quede
+atascado**. Está diseñada para ser rápida, legible de un vistazo, con
+confirmación háptica, y **resiliente al offline**: si no hay señal al cerrar una
+entrega, el cierre se guarda local y se sincroniza solo cuando vuelve la
+conexión. Nada se pierde.
+
+---
+
+## Funcionalidades destacadas
+
+### Ruta y entregas
+- **Agenda del día** ordenada por secuencia, con filtros (todas / pendientes /
+  hechas) y *pull-to-refresh*.
+- **Detalle de parada:** cliente (llamar · WhatsApp · copiar), navegación a
+  **Google Maps o Waze**, nota de despacho y campos personalizados del pedido.
+- **Cierre de entrega** guiado en 3 pasos: fotos de evidencia → datos (campos
+  personalizados que la empresa configuró) → confirmar. La evidencia se sube a
+  almacenamiento S3 (Cloudflare R2) por *presigned URL*.
+- **Reporte de no-entrega** con los motivos que define cada empresa (la app los
+  obtiene de la política de entrega; el motivo elegido se envía verbatim).
+
+### Resiliencia offline (outbox)
+- **Cierres a prueba de zonas muertas:** marcar una entrega COMPLETED/FAILED sin
+  señal **no bloquea** al conductor. El cierre — estado, motivo, notas, campos,
+  GPS y fotos — se **persiste en disco** y se **sincroniza automáticamente** al
+  recuperar conexión (reintenta por *timer*, al volver al foreground y en cada
+  carga de ruta).
+- **Cierre optimista:** la parada se marca como hecha al instante, con un aviso
+  *"Sin señal: se enviará al reconectar"* y un banner de *N pendientes de
+  sincronizar* en el inicio.
+- **Idempotente y seguro:** un reintento tras un *ack* perdido no duplica la
+  visita de entrega; las fotos se suben una sola vez (resume-safe).
 
 ### Tracking GPS
-- Envio automatico de ubicacion cada 20 segundos
-- Nivel de bateria incluido en cada reporte
-- Cola offline para cuando no hay conexion
-- Hasta 100 ubicaciones en cola
-- Reintentos automaticos (3 intentos por envio)
-- Inicia al abrir la app, detiene al cerrar sesion
+- Envío de ubicación con **cadencia adaptativa** (≈20 s en movimiento / ≈60 s
+  detenido) para ahorrar batería, con nivel de batería y contexto de parada.
+- **Cola offline** de ubicaciones con reintentos cuando no hay conexión.
+- El GPS del dispositivo funciona sin red, por lo que la **posición real**
+  queda registrada también en cada cierre de entrega (insumo para reconstruir
+  la trayectoria del conductor).
 
-### Offline-First
-- Datos de ruta cacheados localmente
-- Cola de sincronizacion para ubicaciones fallidas
-- Tokens almacenados de forma segura
+### Comunicación
+- **Chat con despacho** en tiempo real (Centrifugo) + **notificaciones push**
+  (OneSignal), incluyendo **mensajes de emergencia (broadcast)** a toda la
+  flota.
+
+### Diseño
+- Tema **oscuro** con sistema de design tokens (paleta lime / navy alineada con
+  el panel web), pensado para legibilidad en exteriores.
+
+> **Nota de modelo:** los estados de entrega son fijos
+> (`PENDING · IN_PROGRESS · COMPLETED · FAILED`). Lo que varía por empresa es la
+> *presentación* (etiquetas, colores, requisitos de foto/firma/notas y la lista
+> de motivos de fallo), que la app obtiene de
+> `GET /api/mobile/driver/delivery-policy`.
 
 ---
 
 ## Requisitos
 
-- **Flutter** 3.10+
-- **Dart** 3.0+
-- **Android Studio** o **VS Code** con plugins Flutter
-- **Android SDK** 21+ (Android 5.0 Lollipop)
-- **iOS** 12+ (para compilacion iOS)
+- **Flutter** 3.10+ y **Dart** 3.x
+- **Android Studio** o **VS Code** con los plugins de Flutter
+- **Android SDK** 21+ (o **iOS** 12+, solo en macOS con Xcode)
+- El **backend BetterRoute** corriendo y accesible (ver su README)
 
 ---
 
-## Instalacion
-
-### 1. Clonar el repositorio
-
-```bash
-git clone https://github.com/EijunnN/better-route-mobile.git
-cd better-route-mobile
-```
-
-### 2. Instalar dependencias
+## Cómo levantar el proyecto
 
 ```bash
 flutter pub get
-```
 
-### 3. Generar codigo (modelos freezed)
-
-```bash
+# Generar el código de modelos (freezed / json_serializable)
 dart run build_runner build --delete-conflicting-outputs
-```
 
-### 4. Ejecutar en desarrollo
-
-```bash
-# Listar dispositivos disponibles
+# Listar dispositivos y correr
 flutter devices
-
-# Ejecutar en dispositivo/emulador
 flutter run
 ```
 
+En **desarrollo no hay que configurar URLs**: en debug, la app usa por defecto
+el loopback del emulador Android (`http://10.0.2.2:3000` y
+`ws://10.0.2.2:8000`). Para un **dispositivo físico**, pasá la IP de tu máquina:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://TU-IP:3000 \
+            --dart-define=WS_URL=ws://TU-IP:8000/connection/websocket
+```
+
+> Para el flujo completo de setup, requisitos del backend (crear conductor,
+> asignar vehículo, confirmar un plan) y troubleshooting, ver
+> [`SETUP.md`](./SETUP.md).
+
 ---
 
-## Configuracion
+## Configuración
 
-### URLs del backend
+### URLs del backend (build-time, no en el código)
 
-Las URLs **no se editan en el código** — se inyectan en build-time con
-`--dart-define`, y la app **falla al arrancar** (`ApiConfig.assertValid`) si en
-un build de release faltan o no son TLS.
+Las URLs se inyectan con `--dart-define`. La app **falla al arrancar**
+(`ApiConfig.assertValid`) si en un build de **release** faltan o no usan TLS
+(`https://` / `wss://`) — así nunca se publica un build apuntando al entorno de
+desarrollo por error.
 
-- **Desarrollo** (`flutter run`): no hay que configurar nada. En debug,
-  `API_BASE_URL`/`WS_URL` usan por defecto el loopback del emulador Android
-  (`http://10.0.2.2:3000` / `ws://10.0.2.2:8000`). Para un dispositivo físico:
-  `flutter run --dart-define=API_BASE_URL=http://TU-IP:3000`.
-- **Producción / release**: copiá la plantilla, completá tus URLs https/wss, y
-  compilá con el script:
-
-  ```bash
-  cp dart_define.example.json dart_define.json   # editá API_BASE_URL + WS_URL
-  ./scripts/build-release.sh appbundle           # Windows: .\scripts\build-release.ps1
-  ```
-
-  `dart_define.json` está en `.gitignore` (valores por install); la plantilla
-  `dart_define.example.json` sí se versiona.
-
-### Configuracion de Tracking
-
-```dart
-class AppConstants {
-  // Intervalo de envio de ubicacion (segundos)
-  static const int trackingIntervalSeconds = 20;
-
-  // Distancia minima para actualizar (metros)
-  static const int trackingDistanceFilterMeters = 15;
-
-  // Intentos de reenvio en caso de fallo
-  static const int trackingRetryAttempts = 3;
-
-  // Delay entre reintentos (segundos)
-  static const int trackingRetryDelaySeconds = 5;
-}
+```bash
+cp dart_define.example.json dart_define.json   # editá API_BASE_URL + WS_URL
 ```
+
+`dart_define.json` está en `.gitignore` (valores por instalación); la plantilla
+`dart_define.example.json` sí se versiona.
+
+### Push (OneSignal)
+
+El push usa **External ID = id del usuario**, así el backend direcciona con
+`include_aliases.external_id` sin que la app registre un *player id*. Verifica
+que el **App ID** de OneSignal de la app coincida con el del backend
+(`ONESIGNAL_APP_ID`).
+
+### Tracking (cadencia y reintentos)
+
+Ajustable en `lib/core/constants.dart` (`AppConstants`): intervalos en
+movimiento/detenido, umbral de movimiento, filtro de distancia y reintentos.
 
 ### Permisos Android
 
-Los permisos ya estan configurados en `android/app/src/main/AndroidManifest.xml`:
-
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
-<uses-permission android:name="android.permission.CAMERA"/>
-```
-
----
-
-## Estructura del Proyecto
-
-```
-lib/
-├── main.dart                 # Entry point
-├── core/
-│   ├── constants.dart        # API config, app constants
-│   └── theme.dart            # Colores y estilos
-├── models/
-│   ├── models.dart           # Export barrel
-│   ├── user.dart             # Modelo de usuario
-│   ├── driver_info.dart      # Info del conductor
-│   ├── vehicle.dart          # Vehiculo asignado
-│   ├── route_data.dart       # Datos de ruta
-│   └── route_stop.dart       # Parada de ruta
-├── providers/
-│   ├── providers.dart        # Export barrel
-│   ├── auth_provider.dart    # Estado de autenticacion
-│   ├── route_provider.dart   # Estado de ruta/paradas
-│   ├── location_provider.dart # Estado de GPS local
-│   └── tracking_provider.dart # Estado de tracking al servidor
-├── services/
-│   ├── api_service.dart      # Cliente HTTP (Dio)
-│   ├── auth_service.dart     # Login/logout
-│   ├── route_service.dart    # Obtener ruta del dia
-│   ├── location_service.dart # GPS local
-│   ├── tracking_service.dart # Envio de ubicacion al servidor
-│   └── storage_service.dart  # Almacenamiento seguro
-├── screens/
-│   ├── splash_screen.dart    # Pantalla inicial
-│   ├── login_screen.dart     # Login
-│   ├── home_screen.dart      # Lista de paradas
-│   └── stop_detail_screen.dart # Detalle de parada
-├── widgets/
-│   ├── stop_card.dart        # Card de parada
-│   ├── driver_header.dart    # Header con info conductor
-│   ├── metrics_header.dart   # Metricas de progreso
-│   ├── delivery_action_sheet.dart  # Acciones de entrega
-│   └── failure_reason_sheet.dart   # Selector de motivos
-└── router/
-    └── router.dart           # GoRouter config
-```
+Ya configurados en `android/app/src/main/AndroidManifest.xml` (internet,
+ubicación fina/aproximada/background, cámara).
 
 ---
 
 ## Arquitectura
 
-### State Management: Riverpod
+**Riverpod** para estado, **go_router** para navegación, **Dio** para HTTP
+(con interceptor de refresh de JWT), y servicios singleton para la lógica.
 
 ```
-UI (Screens/Widgets)
+UI (screens / widgets)
         │
         ▼
-    Providers (Riverpod)
+Providers (Riverpod)        auth · route · location · tracking · chat · …
         │
         ▼
-    Services (Business Logic)
-        │
+Services (lógica)           api · auth · route · location · tracking ·
+        │                   offline_outbox · chat · storage · push_router
         ▼
-    Data Sources (API, Storage, GPS)
+Fuentes de datos            API REST · Centrifugo (WS) · GPS · disco
 ```
 
-### Providers Principales
-
-| Provider | Descripcion |
-|----------|-------------|
-| `authProvider` | Estado de sesion (user, tokens) |
-| `routeProvider` | Ruta del dia y paradas |
-| `locationProvider` | Ubicacion GPS local |
-| `trackingProvider` | Envio de ubicacion al servidor |
-
-### Flujo de Tracking GPS
-
 ```
-App Inicia
-    │
-    ▼
-locationProvider.startTracking()  ─── GPS Local
-    │
-    ▼
-trackingProvider.startTracking()  ─── Envio al Servidor
-    │
-    ▼
-Timer cada 20s
-    │
-    ▼
-POST /api/mobile/driver/location
-    │
-    ├── Success: Incrementar contador
-    │
-    └── Failure: Agregar a cola offline
-                    │
-                    ▼
-              Reintentar cuando hay conexion
+lib/
+├── core/            constants (URLs/config) · design tokens (colores/tipografía/spacing)
+├── models/          user · driver_info · vehicle · route_data · route_stop ·
+│                    pending_close (outbox) · field_definition · workflow_state
+├── providers/       auth · route · location · tracking · chat · field_definition
+├── services/        api · auth · route · location · tracking · offline_outbox ·
+│                    chat · storage · push_router
+├── screens/         splash · login · home · stop_detail · success · end_of_day ·
+│                    chat · route_map · permissions · onboarding
+├── widgets/         app (botones, inputs) · sheets (entrega, fallo, transición) · shared
+└── router/          go_router
 ```
+
+### Outbox offline (cómo funciona)
+
+1. Al cerrar una entrega, el cierre (estado + fotos locales + GPS + campos) se
+   **encola y persiste** (`shared_preferences`) antes de intentar enviarlo.
+2. Se intenta sincronizar de inmediato. Si hay señal → listo. Si no → queda en
+   cola y la parada se marca **optimistamente** como hecha.
+3. El *flush* reintenta automáticamente: por *timer*, al volver al foreground y
+   en cada carga de ruta exitosa. Sube las fotos pendientes y hace el `PATCH`.
+4. El backend **no-opera** un reenvío de un estado terminal ya aplicado, así que
+   un reintento nunca duplica la visita de entrega.
 
 ---
 
-## Compilacion
+## Compilar para producción
 
-### Android APK (Debug)
-
-```bash
-flutter build apk --debug
-```
-
-Output: `build/app/outputs/flutter-apk/app-debug.apk`
-
-### Android APK (Release)
-
-Las builds de release inyectan las URLs de producción desde `dart_define.json`
-(ver [Configuracion](#configuracion)) — la app aborta al arrancar si faltan.
+Las builds de release inyectan las URLs desde `dart_define.json`
+(ver [Configuración](#configuración)).
 
 ```bash
 ./scripts/build-release.sh apk         # Windows: .\scripts\build-release.ps1 apk
-# equivalente: flutter build apk --release --dart-define-from-file=dart_define.json
+./scripts/build-release.sh appbundle   # AAB para Play Store
+./scripts/build-release.sh ios         # requiere macOS + Xcode
+# Equivalente directo:
+# flutter build apk --release --dart-define-from-file=dart_define.json
 ```
 
-Output: `build/app/outputs/flutter-apk/app-release.apk`
-
-### Android App Bundle (Play Store)
-
-```bash
-./scripts/build-release.sh appbundle
-```
-
-Output: `build/app/outputs/bundle/release/app-release.aab`
-
-### iOS (requiere macOS)
-
-```bash
-./scripts/build-release.sh ios
-# equivalente: flutter build ios --release --dart-define-from-file=dart_define.json
-```
+Para firma de Android (keystore / `key.properties`) y subida a las tiendas, ver
+[`SETUP.md`](./SETUP.md).
 
 ---
 
-## Uso
+## Internacionalización (i18n)
 
-### Login
+Hoy la app está en **español** (mercado LATAM). Parte de los textos de cara al
+conductor ya son **datos del backend** (motivos de no-entrega y etiquetas de
+estado vienen de la política de entrega), lo que facilita traducirlos por
+empresa.
 
-1. Abrir la app
-2. Ingresar usuario y contrasena
-3. El sistema valida contra el backend
+**En el roadmap:** adoptar i18n para soportar cualquier idioma.
 
-### Ver Paradas
+- `flutter_localizations` + `gen-l10n` con archivos `.arb` por idioma para los
+  strings de la app.
+- Selección de locale por usuario (o derivado del dispositivo).
+- Mantener traducibles los datos por empresa (etiquetas / motivos) desde la
+  configuración del panel web.
 
-1. Despues del login, ver lista de paradas
-2. Tabs: Todas / Pendientes / Completadas
-3. Pull-to-refresh para actualizar
-
-### Completar Entrega
-
-1. Tap en una parada
-2. Ver detalles (direccion, cliente, notas)
-3. Tap "Navegar" para abrir Google Maps/Waze
-4. Tap "Completar Entrega"
-5. Capturar foto de evidencia (opcional)
-6. Confirmar
-
-### Registrar No Entrega
-
-1. Tap en una parada
-2. Tap "No se pudo entregar"
-3. Seleccionar motivo (ausente, direccion incorrecta, etc.)
-4. Agregar notas (opcional)
-5. Confirmar
-
-### Cerrar Sesion
-
-1. Tap en icono de logout (header)
-2. Confirmar
-3. Se detiene el tracking GPS
-4. Volver a pantalla de login
-
----
-
-## Dependencias
-
-| Paquete | Version | Uso |
-|---------|---------|-----|
-| flutter_riverpod | ^2.6.1 | State management |
-| go_router | ^14.8.1 | Navegacion |
-| dio | ^5.8.0 | HTTP client |
-| flutter_secure_storage | ^9.2.4 | Tokens seguros |
-| geolocator | ^13.0.2 | GPS |
-| battery_plus | ^6.0.3 | Nivel de bateria |
-| image_picker | ^1.1.2 | Captura de fotos |
-| url_launcher | ^6.3.1 | Abrir Maps/Waze |
-| freezed | ^2.5.8 | Data classes |
-
----
-
-## API Endpoints Utilizados
-
-| Metodo | Endpoint | Descripcion |
-|--------|----------|-------------|
-| POST | `/api/auth/login` | Autenticacion |
-| POST | `/api/auth/refresh` | Renovar token |
-| GET | `/api/mobile/driver/my-route` | Ruta del dia |
-| GET | `/api/mobile/driver/my-orders` | Pedidos asignados |
-| PATCH | `/api/route-stops/:id` | Actualizar parada |
-| POST | `/api/mobile/driver/location` | Enviar ubicacion GPS |
-| POST | `/api/upload/presigned-url` | Subir evidencia |
+Meta: que el mismo binario sirva a operaciones en cualquier región.
 
 ---
 
 ## Relacionado
 
-- [BetterRoute Backend](https://github.com/EijunnN/better-route) - API Next.js
-
----
+- **Backend / panel web BetterRoute** — API Next.js + optimización VROOM/OSRM,
+  despacho, monitoreo y tracking. (Ver su `README.md`.)
 
 <div align="center">
 
-**BetterRoute Mobile** — Entregas eficientes, conductores informados.
+**BetterRoute — App del Conductor** · Entregas eficientes, conductores
+informados.
 
 </div>

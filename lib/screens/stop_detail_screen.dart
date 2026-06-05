@@ -7,10 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/design/tokens.dart';
+import '../models/pending_close.dart';
 import '../models/route_stop.dart';
 import '../models/workflow_state.dart';
 import '../providers/providers.dart';
 import '../router/router.dart';
+import '../services/location_service.dart';
+import '../services/offline_outbox.dart';
 import '../widgets/sheets/sheets.dart';
 import 'stop_detail/widgets/widgets.dart';
 
@@ -66,7 +69,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -86,9 +89,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                             : null,
                         onCopy: stop.order?.customerPhone != null
                             ? () => _copyText(
-                                  stop.order!.customerPhone!,
-                                  'Teléfono copiado',
-                                )
+                                stop.order!.customerPhone!,
+                                'Teléfono copiado',
+                              )
                             : null,
                       ),
                     ],
@@ -97,10 +100,8 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
                     const SizedBox(height: 8),
                     _OrderDetailsGrid(
                       stop: stop,
-                      onCopyTracking: () => _copyText(
-                        stop.trackingDisplay,
-                        'Tracking copiado',
-                      ),
+                      onCopyTracking: () =>
+                          _copyText(stop.trackingDisplay, 'Tracking copiado'),
                     ),
                     if (stop.order?.notes != null &&
                         stop.order!.notes!.isNotEmpty) ...[
@@ -173,9 +174,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
   }
 
   Future<void> _openWaze(RouteStop s) async {
-    await ref
-        .read(locationProvider.notifier)
-        .openWaze(s.latitude, s.longitude);
+    await ref.read(locationProvider.notifier).openWaze(s.latitude, s.longitude);
   }
 
   Future<void> _handleDeliveryAction(RouteStop s) async {
@@ -209,6 +208,24 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     );
   }
 
+  /// Best-effort device GPS at closing time, for the audit trail. The GPS
+  /// chip works without network, so we prefer the last cached fix and only
+  /// fall back to a single live read if there's none. Never throws and never
+  /// blocks the closing flow: returns (null, null) when no fix is available.
+  Future<({String? lat, String? lng})> _captureClosingGps() async {
+    final service = LocationService();
+    var fix = service.lastLocation;
+    if (fix == null) {
+      try {
+        fix = await service.getCurrentLocation();
+      } catch (_) {
+        fix = null;
+      }
+    }
+    if (fix == null) return (lat: null, lng: null);
+    return (lat: fix.latitude.toString(), lng: fix.longitude.toString());
+  }
+
   Future<void> _completeDelivery(
     RouteStop s,
     List<File> photos,
@@ -218,42 +235,47 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     Navigator.pop(context);
     setState(() => _isProcessing = true);
     try {
-      final evidenceUrls = <String>[];
-      final trackingId = s.order?.trackingId ?? s.id;
-      for (int i = 0; i < photos.length; i++) {
-        try {
-          final url = await ref.read(routeProvider.notifier).uploadEvidence(
-                photo: photos[i],
-                trackingId: trackingId,
-                index: i + 1,
-              );
-          evidenceUrls.add(url);
-        } catch (e) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No se pudo subir la foto ${i + 1}. $e'),
-              duration: const Duration(seconds: 6),
-            ),
-          );
-          return;
-        }
-      }
-      final success = await ref.read(routeProvider.notifier).completeStop(
-            stopId: s.id,
-            evidenceUrls: evidenceUrls,
-            notes: notes,
-            customFields: customFields.isEmpty ? null : customFields,
-          );
-      if (success && mounted) {
-        // Push the success screen on top of the detail so the driver
-        // gets the visual confirmation before deciding what's next.
-        context.push(AppRoutes.successPath(s.id));
-      } else if (!success && mounted) {
+      // Outbox-first: persist the close (status + photos + gps) locally, then
+      // try to sync. In a no-signal zone the close survives and uploads later,
+      // so the driver is never blocked. Evidence is uploaded by the outbox.
+      final gps = await _captureClosingGps();
+      final entry = PendingClose(
+        id: s.id,
+        stopId: s.id,
+        trackingId: s.order?.trackingId ?? s.id,
+        status: StopStatus.completed.value,
+        notes: notes,
+        customFields: customFields.isEmpty ? null : customFields,
+        gpsLatitude: gps.lat,
+        gpsLongitude: gps.lng,
+        photoPaths: photos.map((f) => f.path).toList(),
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      final result = await OfflineOutbox().submitClose(entry);
+      if (!mounted) return;
+      if (result == OutboxResult.queued) {
+        // Offline: optimistically mark the stop done + reassure the driver.
+        ref
+            .read(routeProvider.notifier)
+            .applyLocalClose(
+              stopId: s.id,
+              status: StopStatus.completed,
+              notes: notes,
+              customFields: customFields.isEmpty ? null : customFields,
+            );
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al completar la entrega')),
+          const SnackBar(
+            content: Text(
+              'Sin señal: la entrega se guardó y se enviará al recuperar conexión.',
+            ),
+            duration: Duration(seconds: 5),
+          ),
         );
+      } else {
+        // Synced — pull server truth before showing the confirmation.
+        await ref.read(routeProvider.notifier).refresh();
       }
+      if (mounted) context.push(AppRoutes.successPath(s.id));
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -284,42 +306,46 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
     setState(() => _isProcessing = true);
     try {
-      final evidenceUrls = <String>[];
-      if (result.photos.isNotEmpty) {
-        final trackingId = s.order?.trackingId ?? s.id;
-        for (int i = 0; i < result.photos.length; i++) {
-          try {
-            final url = await ref.read(routeProvider.notifier).uploadEvidence(
-                  photo: result.photos[i],
-                  trackingId: trackingId,
-                  index: i + 1,
-                );
-            evidenceUrls.add(url);
-          } catch (e) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('No se pudo subir la foto ${i + 1}. $e'),
-                duration: const Duration(seconds: 6),
-              ),
+      // Outbox-first (same as completion): the failure report survives a
+      // no-signal zone and syncs later. `result.reason` is the verbatim
+      // per-company policy string the driver picked.
+      final gps = await _captureClosingGps();
+      final entry = PendingClose(
+        id: s.id,
+        stopId: s.id,
+        trackingId: s.order?.trackingId ?? s.id,
+        status: StopStatus.failed.value,
+        failureReason: result.reason,
+        notes: result.notes,
+        gpsLatitude: gps.lat,
+        gpsLongitude: gps.lng,
+        photoPaths: result.photos.map((f) => f.path).toList(),
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      final outcome = await OfflineOutbox().submitClose(entry);
+      if (!mounted) return;
+      if (outcome == OutboxResult.queued) {
+        ref
+            .read(routeProvider.notifier)
+            .applyLocalClose(
+              stopId: s.id,
+              status: StopStatus.failed,
+              failureReason: result.reason,
+              notes: result.notes,
             );
-            return;
-          }
-        }
-      }
-      final success = await ref.read(routeProvider.notifier).failStop(
-            stopId: s.id,
-            reason: result.reason,
-            evidenceUrls: evidenceUrls.isNotEmpty ? evidenceUrls : null,
-            notes: result.notes,
-          );
-      if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al reportar el fallo')),
+          const SnackBar(
+            content: Text(
+              'Sin señal: el reporte se guardó y se enviará al recuperar conexión.',
+            ),
+            duration: Duration(seconds: 5),
+          ),
         );
+      } else {
+        await ref.read(routeProvider.notifier).refresh();
       }
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -337,7 +363,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     }
 
     setState(() => _isProcessing = true);
-    final success = await ref.read(routeProvider.notifier).transitionStop(
+    final success = await ref
+        .read(routeProvider.notifier)
+        .transitionStop(
           stopId: s.id,
           workflowStateId: targetState.id,
           systemState: targetState.systemState,
@@ -380,7 +408,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
         final trackingId = s.order?.trackingId ?? s.id;
         for (int i = 0; i < photos.length; i++) {
           try {
-            final url = await ref.read(routeProvider.notifier).uploadEvidence(
+            final url = await ref
+                .read(routeProvider.notifier)
+                .uploadEvidence(
                   photo: photos[i],
                   trackingId: trackingId,
                   index: i + 1,
@@ -398,7 +428,9 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
           }
         }
       }
-      final success = await ref.read(routeProvider.notifier).transitionStop(
+      final success = await ref
+          .read(routeProvider.notifier)
+          .transitionStop(
             stopId: s.id,
             workflowStateId: targetState.id,
             systemState: targetState.systemState,
@@ -541,10 +573,7 @@ class _StopMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = AppColors.bgBase,
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = AppColors.bgBase);
     // Radial glow around the stop's "centre".
     final centre = Offset(size.width / 2, size.height * 0.45);
     final radius = size.width * 0.55;
@@ -557,9 +586,7 @@ class _StopMapPainter extends CustomPainter {
             AppColors.lime.withValues(alpha: 0.18),
             AppColors.lime.withValues(alpha: 0.0),
           ],
-        ).createShader(
-          Rect.fromCircle(center: centre, radius: radius),
-        ),
+        ).createShader(Rect.fromCircle(center: centre, radius: radius)),
     );
     // Grid.
     final grid = Paint()
@@ -594,7 +621,10 @@ class _StopMapPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, Offset(centre.dx - tp.width / 2, centre.dy - tp.height / 2));
+    tp.paint(
+      canvas,
+      Offset(centre.dx - tp.width / 2, centre.dy - tp.height / 2),
+    );
   }
 
   @override
@@ -867,8 +897,10 @@ class _SequenceBadge extends StatelessWidget {
       icon = const Icon(Icons.check, size: 14, color: AppColors.fgInverse);
     } else if (status.isFailed) {
       bg = AppColors.danger;
-      fg = AppColors.fgPrimary;
-      icon = const Icon(Icons.close, size: 14, color: AppColors.fgPrimary);
+      // Black on coral (6.75:1), mirroring the completed branch — light grey
+      // on coral fails WCAG AA (2.58:1).
+      fg = AppColors.fgInverse;
+      icon = const Icon(Icons.close, size: 14, color: AppColors.fgInverse);
     } else if (status.isInProgress) {
       bg = AppColors.fgPrimary;
       fg = AppColors.bgBase;
@@ -887,7 +919,8 @@ class _SequenceBadge extends StatelessWidget {
             : null,
       ),
       alignment: Alignment.center,
-      child: icon ??
+      child:
+          icon ??
           Text(
             '$seq',
             style: AppTypography.mono.copyWith(
@@ -907,10 +940,18 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, bg, fg) = switch (status) {
-      StopStatus.pending => ('Pendiente', AppColors.bgSurfaceElevated, AppColors.fgSecondary),
+      StopStatus.pending => (
+        'Pendiente',
+        AppColors.bgSurfaceElevated,
+        AppColors.fgSecondary,
+      ),
       StopStatus.inProgress => ('En curso', AppColors.limeSoft, AppColors.lime),
       StopStatus.completed => ('Entregado', AppColors.limeSoft, AppColors.lime),
-      StopStatus.failed => ('No entregó', AppColors.dangerSoft, AppColors.danger),
+      StopStatus.failed => (
+        'No entregó',
+        AppColors.dangerSoft,
+        AppColors.danger,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -924,10 +965,7 @@ class _StatusChip extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: fg,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
           Text(
@@ -1002,8 +1040,9 @@ class _CustomerCard extends StatelessWidget {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '··';
     final first = parts.first[0].toUpperCase();
-    final second =
-        parts.length > 1 && parts[1].isNotEmpty ? parts[1][0].toUpperCase() : '';
+    final second = parts.length > 1 && parts[1].isNotEmpty
+        ? parts[1][0].toUpperCase()
+        : '';
     return '$first$second';
   }
 
@@ -1162,17 +1201,15 @@ class _OrderDetailsGrid extends StatelessWidget {
   final RouteStop stop;
   final VoidCallback onCopyTracking;
 
-  const _OrderDetailsGrid({
-    required this.stop,
-    required this.onCopyTracking,
-  });
+  const _OrderDetailsGrid({required this.stop, required this.onCopyTracking});
 
   @override
   Widget build(BuildContext context) {
     final units = stop.order?.units;
     final weight = stop.order?.weight;
     final tracking = stop.trackingDisplay;
-    final oc = stop.order?.customFields['oc_cliente'] ??
+    final oc =
+        stop.order?.customFields['oc_cliente'] ??
         stop.order?.customFields['oc'];
 
     final cells = <_MetaCellSpec>[
@@ -1215,11 +1252,7 @@ class _OrderDetailsGrid extends StatelessWidget {
             Row(
               children: [
                 Expanded(child: _MetaCell(spec: cells[rowIdx * 2])),
-                Container(
-                  width: 1,
-                  height: 56,
-                  color: AppColors.borderSubtle,
-                ),
+                Container(width: 1, height: 56, color: AppColors.borderSubtle),
                 Expanded(
                   child: rowIdx * 2 + 1 < cells.length
                       ? _MetaCell(spec: cells[rowIdx * 2 + 1])
@@ -1282,10 +1315,10 @@ class _MetaCell extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: (spec.mono ? AppTypography.mono : AppTypography.bodyMedium)
                 .copyWith(
-              color: AppColors.fgPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+                  color: AppColors.fgPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
           ),
         ],
       ),
@@ -1343,7 +1376,10 @@ class _DispatchNote extends StatelessWidget {
               Expanded(
                 child: Text(
                   text,
-                  style: AppTypography.body.copyWith(fontSize: 13.5, height: 1.5),
+                  style: AppTypography.body.copyWith(
+                    fontSize: 13.5,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ],
@@ -1387,9 +1423,15 @@ class _CapturePreview extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: const [
-              _PreviewChip(icon: Icons.camera_alt_outlined, label: '0 / 3 fotos'),
+              _PreviewChip(
+                icon: Icons.camera_alt_outlined,
+                label: '0 / 3 fotos',
+              ),
               _PreviewChip(icon: Icons.person_outline, label: 'Quién recibió'),
-              _PreviewChip(icon: Icons.check_circle_outline, label: 'Confirmación'),
+              _PreviewChip(
+                icon: Icons.check_circle_outline,
+                label: 'Confirmación',
+              ),
             ],
           ),
         ],

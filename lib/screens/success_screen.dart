@@ -148,14 +148,14 @@ class _SuccessScreenState extends ConsumerState<SuccessScreen>
 
                 if (completed != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _SummaryCard(stop: completed),
                   ),
 
                 if (next != null) ...[
                   const SizedBox(height: 16),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _NextStopCard(
                       stop: next,
                       onTap: () => context.go(
@@ -169,7 +169,7 @@ class _SuccessScreenState extends ConsumerState<SuccessScreen>
 
                 // Action bar.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                   child: Row(
                     children: [
                       Expanded(

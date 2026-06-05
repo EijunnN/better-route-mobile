@@ -48,7 +48,7 @@ class PhotoThumb extends StatelessWidget {
                 child: const Icon(
                   Icons.close_rounded,
                   size: 12,
-                  color: Colors.white,
+                  color: AppColors.fgInverse,
                 ),
               ),
             ),

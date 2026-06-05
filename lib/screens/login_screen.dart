@@ -118,7 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               // and maxHeight = intrinsic, and Spacer flexes inside.
               child: LayoutBuilder(
                 builder: (context, viewport) => SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       minHeight: viewport.maxHeight,

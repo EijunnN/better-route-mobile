@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 /// accents on live elements (a thin colored glow under a status pill) and
 /// for sheet backdrop scrim.
 abstract class AppShadows {
-  /// Subtle glow under live/active status pills.
+  /// Subtle glow under live/active status pills. Lime (post-rebrand) — the
+  /// old jade #22D3A2 clashed under elements the app now paints lime.
   static const liveGlow = [
     BoxShadow(
-      color: Color(0x4022D3A2),
+      color: Color(0x40C5F33A),
       blurRadius: 16,
       spreadRadius: 0,
     ),

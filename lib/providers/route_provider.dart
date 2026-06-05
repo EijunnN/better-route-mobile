@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/route_service.dart';
 import '../services/api_service.dart';
+import '../services/offline_outbox.dart';
 import '../services/tracking_service.dart';
 
 /// Route state
@@ -85,6 +86,8 @@ class RouteNotifier extends StateNotifier<RouteState> {
         lastUpdated: DateTime.now(),
       );
       _syncTrackingContext(data);
+      // We have connectivity — drain any closes queued from a no-signal zone.
+      OfflineOutbox().flush();
     } on ApiException catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -114,11 +117,15 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
-  /// Complete a stop with evidence
+  /// Complete a stop with evidence. [gpsLatitude]/[gpsLongitude] are the
+  /// device position captured at closing time (audit trail), absent when
+  /// no GPS fix is available.
   Future<bool> completeStop({
     required String stopId,
     required List<String> evidenceUrls,
     String? notes,
+    String? gpsLatitude,
+    String? gpsLongitude,
     Map<String, dynamic>? customFields,
   }) async {
     try {
@@ -126,6 +133,8 @@ class RouteNotifier extends StateNotifier<RouteState> {
         stopId: stopId,
         evidenceUrls: evidenceUrls,
         notes: notes,
+        gpsLatitude: gpsLatitude,
+        gpsLongitude: gpsLongitude,
         customFields: customFields,
       );
       await refresh();
@@ -136,12 +145,15 @@ class RouteNotifier extends StateNotifier<RouteState> {
   }
 
   /// Fail a stop with reason. [reason] is the verbatim per-company policy
-  /// string the driver selected.
+  /// string the driver selected. [gpsLatitude]/[gpsLongitude] are the
+  /// device position captured at closing time (audit trail).
   Future<bool> failStop({
     required String stopId,
     required String reason,
     List<String>? evidenceUrls,
     String? notes,
+    String? gpsLatitude,
+    String? gpsLongitude,
   }) async {
     try {
       await _routeService.failStop(
@@ -149,6 +161,8 @@ class RouteNotifier extends StateNotifier<RouteState> {
         reason: reason,
         evidenceUrls: evidenceUrls,
         notes: notes,
+        gpsLatitude: gpsLatitude,
+        gpsLongitude: gpsLongitude,
       );
       await refresh();
       return true;
@@ -157,7 +171,10 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
-  /// Transition a stop to a new workflow state
+  /// Transition a stop to a new workflow state. [workflowStateId] is kept
+  /// in the signature for callers that still pass the target state id, but
+  /// the backend crystallized its state machine and now derives everything
+  /// from [systemState] alone — only the resulting status is sent.
   Future<bool> transitionStop({
     required String stopId,
     required String workflowStateId,
@@ -168,9 +185,8 @@ class RouteNotifier extends StateNotifier<RouteState> {
   }) async {
     try {
       final status = StopStatus.fromString(systemState);
-      await _routeService.transitionStop(
+      await _routeService.updateStopStatus(
         stopId: stopId,
-        workflowStateId: workflowStateId,
         status: status,
         notes: notes,
         failureReason: failureReason,
@@ -198,6 +214,51 @@ class RouteNotifier extends StateNotifier<RouteState> {
       trackingId: trackingId,
       index: index,
     );
+  }
+
+  /// Optimistically reflect a close that was queued offline, so the UI shows
+  /// the stop as done immediately. The real sync happens through the outbox;
+  /// the next successful route load replaces this with server truth.
+  void applyLocalClose({
+    required String stopId,
+    required StopStatus status,
+    String? failureReason,
+    String? notes,
+    List<String>? evidenceUrls,
+    Map<String, dynamic>? customFields,
+  }) {
+    final data = state.data;
+    final route = data?.route;
+    if (data == null || route == null) return;
+    final now = DateTime.now();
+    final updatedStops = route.stops
+        .map(
+          (s) => s.id == stopId
+              ? s.copyWith(
+                  status: status,
+                  completedAt: now,
+                  failureReason: failureReason,
+                  notes: notes,
+                  evidenceUrls: evidenceUrls,
+                  customFields: customFields,
+                )
+              : s,
+        )
+        .toList();
+    state = state.copyWith(
+      data: DriverRouteData(
+        driver: data.driver,
+        vehicle: data.vehicle,
+        route: RouteInfo(
+          id: route.id,
+          jobId: route.jobId,
+          jobCreatedAt: route.jobCreatedAt,
+          stops: updatedStops,
+        ),
+        metrics: data.metrics,
+      ),
+    );
+    _syncTrackingContext(state.data);
   }
 
   /// Clear error
@@ -247,9 +308,9 @@ final routeMetricsProvider = Provider<RouteMetrics?>((ref) {
 final stopByIdProvider = Provider.family<RouteStop?, String>((ref, stopId) {
   final stops = ref.watch(stopsProvider);
   return stops.cast<RouteStop?>().firstWhere(
-        (s) => s?.id == stopId,
-        orElse: () => null,
-      );
+    (s) => s?.id == stopId,
+    orElse: () => null,
+  );
 });
 
 /// Filter stops by status

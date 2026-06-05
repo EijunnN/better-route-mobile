@@ -57,7 +57,7 @@ class EntregasApp extends ConsumerWidget {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Color(0xFF0A0A0B),
+        systemNavigationBarColor: Color(0xFF0F1220), // AppColors.bgBase (navy)
         systemNavigationBarIconBrightness: Brightness.light,
       ),
     );

@@ -8,6 +8,7 @@ import '../models/route_stop.dart';
 import '../providers/providers.dart';
 import '../router/router.dart';
 import '../services/location_service.dart';
+import '../services/offline_outbox.dart';
 import '../widgets/app/app.dart';
 import '../widgets/shared/shared.dart';
 import 'home/widgets/widgets.dart';
@@ -47,6 +48,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Drain any closes queued from a prior offline session, and keep retrying
+    // on a timer while the driver is on shift.
+    OfflineOutbox().startAutoFlush();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(routeProvider.notifier).loadRoute();
       ref.read(workflowProvider.notifier).loadStates();
@@ -59,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    OfflineOutbox().stopAutoFlush();
     super.dispose();
   }
 
@@ -66,6 +71,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(locationProvider.notifier).checkPermission();
+      // Coming back to the foreground is a good moment to sync queued closes.
+      OfflineOutbox().flush();
     }
   }
 
@@ -133,8 +140,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final routeState = ref.watch(routeProvider);
-    final permissionStatus =
-        ref.watch(locationProvider.select((s) => s.permissionStatus));
+    final permissionStatus = ref.watch(
+      locationProvider.select((s) => s.permissionStatus),
+    );
 
     // Sort stops by sequence for the peek so the polyline order is
     // deterministic regardless of how the API returned them.
@@ -149,11 +157,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final lastEnd = allStops
         .map((s) => s.timeWindow?.end)
         .whereType<DateTime>()
-        .fold<DateTime?>(null, (acc, dt) =>
-            acc == null || dt.isAfter(acc) ? dt : acc);
+        .fold<DateTime?>(
+          null,
+          (acc, dt) => acc == null || dt.isAfter(acc) ? dt : acc,
+        );
     if (lastEnd != null) {
       final l = lastEnd.toLocal();
-      etaEnd = '${l.hour.toString().padLeft(2, '0')}:'
+      etaEnd =
+          '${l.hour.toString().padLeft(2, '0')}:'
           '${l.minute.toString().padLeft(2, '0')}';
     }
 
@@ -211,6 +222,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           ),
                         ),
 
+                        // Offline outbox status — closes captured in a
+                        // no-signal zone, syncing in the background.
+                        const SliverToBoxAdapter(child: _OutboxBanner()),
+
                         // Filter chips.
                         SliverToBoxAdapter(
                           child: Padding(
@@ -246,8 +261,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           )
                         else
                           SliverPadding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             sliver: SliverList.separated(
                               itemCount: stops.length,
                               separatorBuilder: (_, _) =>
@@ -266,9 +280,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                         // Tail spacer so the last row sits above the
                         // bottom nav comfortably.
-                        const SliverToBoxAdapter(
-                          child: SizedBox(height: 24),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
                       ],
                     ),
                   ),
@@ -289,7 +301,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       // top bar shows "Esperanza" the moment login
                       // finishes — not the generic "Conductor"
                       // placeholder while /my-route is still in flight.
-                      driverName: routeState.driver?.name ??
+                      driverName:
+                          routeState.driver?.name ??
                           ref.watch(authProvider).user?.name ??
                           'Conductor',
                       onChatTap: () => context.push(AppRoutes.chat),
@@ -314,6 +327,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
+/// Thin banner that surfaces stop closes captured offline and waiting to
+/// sync. Watches the outbox's pending count; collapses to nothing at zero.
+class _OutboxBanner extends StatelessWidget {
+  const _OutboxBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: OfflineOutbox().pendingCount,
+      builder: (context, count, _) {
+        if (count <= 0) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.warningSoft,
+              borderRadius: AppRadius.rMd,
+              border: Border.all(
+                color: AppColors.warning.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sync_rounded,
+                  size: 16,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    count == 1
+                        ? '1 entrega guardada sin señal — se enviará al reconectar'
+                        : '$count entregas guardadas sin señal — se enviarán al reconectar',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.fgPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _HomeLoading extends StatelessWidget {
   const _HomeLoading();
 
@@ -323,10 +386,7 @@ class _HomeLoading extends StatelessWidget {
       child: SizedBox(
         width: 32,
         height: 32,
-        child: CircularProgressIndicator(
-          color: AppColors.lime,
-          strokeWidth: 2,
-        ),
+        child: CircularProgressIndicator(color: AppColors.lime, strokeWidth: 2),
       ),
     );
   }

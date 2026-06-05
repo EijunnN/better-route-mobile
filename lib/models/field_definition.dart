@@ -10,8 +10,6 @@ class FieldDefinition {
   final List<String>? options;
   final String? defaultValue;
   final int position;
-  final bool showInMobile;
-  final Map<String, dynamic>? validationRules;
 
   const FieldDefinition({
     required this.id,
@@ -24,8 +22,6 @@ class FieldDefinition {
     this.options,
     this.defaultValue,
     this.position = 0,
-    this.showInMobile = true,
-    this.validationRules,
   });
 
   factory FieldDefinition.fromJson(Map<String, dynamic> json) {
@@ -42,10 +38,6 @@ class FieldDefinition {
           : null,
       defaultValue: json['defaultValue'] as String?,
       position: json['position'] as int? ?? 0,
-      showInMobile: json['showInMobile'] as bool? ?? true,
-      validationRules: json['validationRules'] != null
-          ? Map<String, dynamic>.from(json['validationRules'] as Map)
-          : null,
     );
   }
 

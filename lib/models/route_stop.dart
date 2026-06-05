@@ -70,7 +70,6 @@ class OrderInfo {
   final String? notes;
   final double? weight;
   final double? volume;
-  final double? value;
   final int? units;
   final Map<String, dynamic> customFields;
 
@@ -83,7 +82,6 @@ class OrderInfo {
     this.notes,
     this.weight,
     this.volume,
-    this.value,
     this.units,
     this.customFields = const {},
   });
@@ -98,7 +96,6 @@ class OrderInfo {
       notes: json['notes'] as String?,
       weight: (json['weight'] as num?)?.toDouble(),
       volume: (json['volume'] as num?)?.toDouble(),
-      value: (json['value'] as num?)?.toDouble(),
       units: json['units'] as int?,
       customFields: json['customFields'] != null
           ? Map<String, dynamic>.from(json['customFields'] as Map)
@@ -122,7 +119,6 @@ class RouteStop {
   final double latitude;
   final double longitude;
   final DateTime? estimatedArrival;
-  final int? estimatedServiceTime;
   final TimeWindow? timeWindow;
   final DateTime? startedAt;
   final DateTime? completedAt;
@@ -155,7 +151,6 @@ class RouteStop {
     required this.latitude,
     required this.longitude,
     this.estimatedArrival,
-    this.estimatedServiceTime,
     this.timeWindow,
     this.startedAt,
     this.completedAt,
@@ -187,7 +182,6 @@ class RouteStop {
       estimatedArrival: json['estimatedArrival'] != null
           ? DateTime.tryParse(json['estimatedArrival'] as String)
           : null,
-      estimatedServiceTime: json['estimatedServiceTime'] as int?,
       timeWindow: json['timeWindow'] != null
           ? TimeWindow.fromJson(json['timeWindow'] as Map<String, dynamic>)
           : null,
@@ -224,13 +218,6 @@ class RouteStop {
     return order?.trackingId ?? 'N/A';
   }
 
-  /// Estimated arrival time formatted
-  String get arrivalTimeDisplay {
-    if (estimatedArrival == null) return '--:--';
-    final local = estimatedArrival!.toLocal();
-    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-  }
-
   /// Copy with new status
   RouteStop copyWith({
     String? id,
@@ -240,7 +227,6 @@ class RouteStop {
     double? latitude,
     double? longitude,
     DateTime? estimatedArrival,
-    int? estimatedServiceTime,
     TimeWindow? timeWindow,
     DateTime? startedAt,
     DateTime? completedAt,
@@ -261,7 +247,6 @@ class RouteStop {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       estimatedArrival: estimatedArrival ?? this.estimatedArrival,
-      estimatedServiceTime: estimatedServiceTime ?? this.estimatedServiceTime,
       timeWindow: timeWindow ?? this.timeWindow,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,

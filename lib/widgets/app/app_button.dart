@@ -173,7 +173,9 @@ class _AppButtonState extends State<AppButton>
       case AppButtonVariant.destructive:
         return (
           bg: AppColors.accentDanger,
-          fg: AppColors.fgPrimary,
+          // Black on bright coral (6.75:1) — same brand rule as lime.
+          // fgPrimary (light grey) on coral fails WCAG AA (2.58:1).
+          fg: AppColors.fgInverse,
           border: null,
         );
     }
@@ -249,7 +251,7 @@ class _AppButtonState extends State<AppButton>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.isLoading)
+              if (widget.isLoading) ...[
                 SizedBox(
                   width: s.iconSize,
                   height: s.iconSize,
@@ -257,8 +259,9 @@ class _AppButtonState extends State<AppButton>
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation(fg),
                   ),
-                )
-              else if (widget.icon != null) ...[
+                ),
+                const SizedBox(width: 8),
+              ] else if (widget.icon != null) ...[
                 Icon(widget.icon, size: s.iconSize, color: fg),
                 const SizedBox(width: 8),
               ],

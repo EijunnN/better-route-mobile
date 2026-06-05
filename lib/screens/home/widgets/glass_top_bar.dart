@@ -60,7 +60,7 @@ class _GlassTopBarState extends State<GlassTopBar>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: Row(
         children: [
           // Avatar pill.
