@@ -189,6 +189,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         SliverToBoxAdapter(
                           child: HomeMapPeek(
                             stops: allStops,
+                            geometry: routeState.data?.route?.geometry,
                             onTap: () => context.push(AppRoutes.routeMap),
                           ),
                         ),

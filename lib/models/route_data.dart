@@ -70,12 +70,18 @@ class RouteInfo {
   final String id;
   final String jobId;
   final DateTime jobCreatedAt;
+
+  /// Polyline codificado (precisión 5) de la ruta REAL por calles, tal
+  /// como la calculó OSRM/VROOM. Null en planes antiguos sin geometría.
+  /// Decodificar con `decodePolyline` (core/polyline.dart).
+  final String? geometry;
   final List<RouteStop> stops;
 
   const RouteInfo({
     required this.id,
     required this.jobId,
     required this.jobCreatedAt,
+    this.geometry,
     required this.stops,
   });
 
@@ -84,6 +90,7 @@ class RouteInfo {
       id: json['id'] as String,
       jobId: json['jobId'] as String,
       jobCreatedAt: DateTime.parse(json['jobCreatedAt'] as String),
+      geometry: json['geometry'] as String?,
       stops: (json['stops'] as List)
           .map((s) => RouteStop.fromJson(s as Map<String, dynamic>))
           .toList(),

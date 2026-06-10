@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/design/tokens.dart';
+import '../core/polyline.dart';
 import '../models/route_stop.dart';
 import '../providers/providers.dart';
 import '../router/router.dart';
@@ -26,11 +27,33 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
   final MapController _mapController = MapController();
   String? _selectedStopId;
 
+  // Decodificación memoizada de la geometría: el build corre en cada
+  // setState (selección de marker) y no queremos re-decodificar miles
+  // de puntos cada vez.
+  String? _decodedGeometry;
+  List<LatLng> _routePath = const [];
+
+  List<LatLng> _resolveRoutePath(String? geometry) {
+    if (geometry == null || geometry.isEmpty) return const [];
+    if (_decodedGeometry != geometry) {
+      _decodedGeometry = geometry;
+      _routePath = decodePolyline(geometry);
+    }
+    return _routePath;
+  }
+
   @override
   Widget build(BuildContext context) {
     final routeState = ref.watch(routeProvider);
     final locationState = ref.watch(locationProvider);
     final stops = routeState.stops;
+
+    // Ruta REAL por calles (geometría OSRM del plan). Fallback: unir
+    // paradas con rectas cuando el plan no trae geometría.
+    final routePath = _resolveRoutePath(routeState.data?.route?.geometry);
+    final linePoints = routePath.length >= 2
+        ? routePath
+        : stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -58,7 +81,7 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                   fallbackUrl:
                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 ),
-                if (stops.length > 1)
+                if (linePoints.length > 1)
                   PolylineLayer(
                     polylines: [
                       // Lime polyline — same brand vocabulary as the
@@ -67,16 +90,12 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
                       // muted version so it reads on top of the dark
                       // CARTO tiles.
                       Polyline(
-                        points: stops
-                            .map((s) => LatLng(s.latitude, s.longitude))
-                            .toList(),
+                        points: linePoints,
                         color: AppColors.lime.withValues(alpha: 0.18),
                         strokeWidth: 8,
                       ),
                       Polyline(
-                        points: stops
-                            .map((s) => LatLng(s.latitude, s.longitude))
-                            .toList(),
+                        points: linePoints,
                         color: AppColors.lime,
                         strokeWidth: 3,
                       ),

@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
 import '../../../core/design/tokens.dart';
+import '../../../core/polyline.dart';
 import '../../../models/route_stop.dart';
 
 /// 280h stylised "map peek" for the home screen.
@@ -21,16 +23,26 @@ import '../../../models/route_stop.dart';
 /// [RouteStop.sequence].
 class HomeMapPeek extends StatelessWidget {
   final List<RouteStop> stops;
+
+  /// Polyline codificado de la ruta por calles (RouteInfo.geometry).
+  /// Con geometría el trazo sigue las calles reales; sin ella se unen
+  /// las paradas con rectas como antes.
+  final String? geometry;
   final VoidCallback onTap;
 
   const HomeMapPeek({
     super.key,
     required this.stops,
+    this.geometry,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final path = (geometry == null || geometry!.isEmpty)
+        ? const <LatLng>[]
+        : decodePolyline(geometry!);
+
     return SizedBox(
       height: 280,
       child: Stack(
@@ -39,7 +51,9 @@ class HomeMapPeek extends StatelessWidget {
           Positioned.fill(
             child: GestureDetector(
               onTap: onTap,
-              child: CustomPaint(painter: _MapPeekPainter(stops: stops)),
+              child: CustomPaint(
+                painter: _MapPeekPainter(stops: stops, path: path),
+              ),
             ),
           ),
 
@@ -135,7 +149,10 @@ class _VerMapaPill extends StatelessWidget {
 class _MapPeekPainter extends CustomPainter {
   final List<RouteStop> stops;
 
-  const _MapPeekPainter({required this.stops});
+  /// Ruta por calles ya decodificada. Vacía = unir paradas con rectas.
+  final List<LatLng> path;
+
+  const _MapPeekPainter({required this.stops, required this.path});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -174,22 +191,48 @@ class _MapPeekPainter extends CustomPainter {
 
     if (stops.isEmpty) return;
 
-    // 3. Project stops into the canvas. Equirectangular projection
-    //    with 12% padding so the polyline doesn't kiss the edges.
-    final projected = _project(stops, size, pad: 0.12);
-    if (projected.length < 2) {
+    // 3. Project stops AND route path into the canvas with shared
+    //    bounds (equirectangular, 12% padding) so the stroke and the
+    //    dots stay alineados entre sí.
+    final allLats = [
+      for (final s in stops) s.latitude,
+      for (final p in path) p.latitude,
+    ];
+    final allLngs = [
+      for (final s in stops) s.longitude,
+      for (final p in path) p.longitude,
+    ];
+    final projected = _project(
+      [for (final s in stops) (s.latitude, s.longitude)],
+      allLats,
+      allLngs,
+      size,
+      pad: 0.12,
+    );
+    if (projected.length < 2 && path.length < 2) {
       // Single stop — just draw a marker centred.
       _drawCurrentMarker(canvas, Offset(size.width / 2, size.height / 2));
       return;
     }
 
-    // 4. Polyline halo + line. Same style as login key art.
-    final path = Path()..moveTo(projected.first.dx, projected.first.dy);
-    for (final p in projected.skip(1)) {
-      path.lineTo(p.dx, p.dy);
+    // 4. Polyline halo + line. La ruta REAL por calles cuando el plan
+    //    trae geometría; rectas entre paradas como fallback.
+    final strokePoints = path.length >= 2
+        ? _project(
+            [for (final p in path) (p.latitude, p.longitude)],
+            allLats,
+            allLngs,
+            size,
+            pad: 0.12,
+          )
+        : projected;
+    final stroke = Path()
+      ..moveTo(strokePoints.first.dx, strokePoints.first.dy);
+    for (final p in strokePoints.skip(1)) {
+      stroke.lineTo(p.dx, p.dy);
     }
     canvas.drawPath(
-      path,
+      stroke,
       Paint()
         ..color = AppColors.lime.withValues(alpha: 0.15)
         ..style = PaintingStyle.stroke
@@ -198,7 +241,7 @@ class _MapPeekPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round,
     );
     canvas.drawPath(
-      path,
+      stroke,
       Paint()
         ..color = AppColors.lime
         ..style = PaintingStyle.stroke
@@ -263,18 +306,20 @@ class _MapPeekPainter extends CustomPainter {
   }
 
   /// Equirectangular projection: scale lat/lng to canvas with padding.
-  /// We don't gate on null because [RouteStop.latitude]/longitude are
-  /// non-nullable in the backend contract — but defensively coerce to
-  /// the centre if anything is finite-but-zero.
-  List<Offset> _project(List<RouteStop> stops, Size size,
-      {double pad = 0.1}) {
-    if (stops.isEmpty) return const [];
-    final lats = stops.map((s) => s.latitude).toList();
-    final lngs = stops.map((s) => s.longitude).toList();
-    final minLat = lats.reduce((a, b) => a < b ? a : b);
-    final maxLat = lats.reduce((a, b) => a > b ? a : b);
-    final minLng = lngs.reduce((a, b) => a < b ? a : b);
-    final maxLng = lngs.reduce((a, b) => a > b ? a : b);
+  /// `boundsLats`/`boundsLngs` define el encuadre compartido (paradas +
+  /// geometría) para que trazo y puntos queden alineados entre sí.
+  List<Offset> _project(
+    List<(double, double)> points,
+    List<double> boundsLats,
+    List<double> boundsLngs,
+    Size size, {
+    double pad = 0.1,
+  }) {
+    if (points.isEmpty || boundsLats.isEmpty) return const [];
+    final minLat = boundsLats.reduce((a, b) => a < b ? a : b);
+    final maxLat = boundsLats.reduce((a, b) => a > b ? a : b);
+    final minLng = boundsLngs.reduce((a, b) => a < b ? a : b);
+    final maxLng = boundsLngs.reduce((a, b) => a > b ? a : b);
     final latRange = (maxLat - minLat).abs();
     final lngRange = (maxLng - minLng).abs();
     final padX = size.width * pad;
@@ -283,19 +328,19 @@ class _MapPeekPainter extends CustomPainter {
     final usableH = size.height - 2 * padY;
 
     return [
-      for (final s in stops)
+      for (final (lat, lng) in points)
         Offset(
           lngRange == 0
               ? size.width / 2
-              : padX + ((s.longitude - minLng) / lngRange) * usableW,
+              : padX + ((lng - minLng) / lngRange) * usableW,
           latRange == 0
               ? size.height / 2
-              : padY + ((maxLat - s.latitude) / latRange) * usableH,
+              : padY + ((maxLat - lat) / latRange) * usableH,
         ),
     ];
   }
 
   @override
   bool shouldRepaint(covariant _MapPeekPainter old) =>
-      !identical(old.stops, stops);
+      !identical(old.stops, stops) || !identical(old.path, path);
 }

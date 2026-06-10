@@ -253,6 +253,7 @@ class RouteNotifier extends StateNotifier<RouteState> {
           id: route.id,
           jobId: route.jobId,
           jobCreatedAt: route.jobCreatedAt,
+          geometry: route.geometry,
           stops: updatedStops,
         ),
         metrics: data.metrics,
