@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +44,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   HomeStopFilter _filter = HomeStopFilter.pending;
+  Timer? _routeRefreshTimer;
 
   @override
   void initState() {
@@ -58,10 +60,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(locationProvider.notifier).startTracking();
       ref.read(trackingProvider.notifier).startTracking();
     });
+    // El ETA en vivo se recalcula en el backend con cada ping GPS; este
+    // poll trae los valores frescos sin que el driver tenga que hacer
+    // pull-to-refresh.
+    _routeRefreshTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => ref.read(routeProvider.notifier).refresh(),
+    );
   }
 
   @override
   void dispose() {
+    _routeRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     OfflineOutbox().stopAutoFlush();
     super.dispose();
@@ -151,16 +161,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final stops = _filtered(allStops);
     final completed = allStops.where((s) => s.status.isCompleted).length;
 
-    // Try to read the latest stop's expected window end as "ETA fin".
-    // Falls back to null when nothing's set.
+    // "ETA fin": el mayor ETA en vivo de las paradas pendientes manda;
+    // fallback al fin de ventana más tardío cuando no hay recálculo.
     String? etaEnd;
-    final lastEnd = allStops
-        .map((s) => s.timeWindow?.end)
+    final lastLiveEta = allStops
+        .where((s) => s.status.isPending || s.status.isInProgress)
+        .map((s) => s.liveEtaAt)
         .whereType<DateTime>()
         .fold<DateTime?>(
           null,
           (acc, dt) => acc == null || dt.isAfter(acc) ? dt : acc,
         );
+    final lastEnd =
+        lastLiveEta ??
+        allStops
+            .map((s) => s.timeWindow?.end)
+            .whereType<DateTime>()
+            .fold<DateTime?>(
+              null,
+              (acc, dt) => acc == null || dt.isAfter(acc) ? dt : acc,
+            );
     if (lastEnd != null) {
       final l = lastEnd.toLocal();
       etaEnd =

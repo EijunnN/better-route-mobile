@@ -349,6 +349,63 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     }
   }
 
+  /// Cierre terminal (COMPLETED/FAILED) vía outbox: se persiste local con
+  /// las RUTAS de las fotos (no URLs) y se intenta sincronizar. Sin señal,
+  /// el outbox sube fotos + cierre cuando vuelva la conexión — el driver
+  /// nunca se bloquea por un DioException de red.
+  Future<void> _closeViaOutbox(
+    RouteStop s, {
+    required String status,
+    List<File> photos = const [],
+    String? notes,
+    String? reason,
+    Map<String, dynamic>? customFields,
+  }) async {
+    final gps = await _captureClosingGps();
+    final entry = PendingClose(
+      id: s.id,
+      stopId: s.id,
+      trackingId: s.order?.trackingId ?? s.id,
+      status: status,
+      failureReason: reason,
+      notes: notes,
+      customFields: customFields,
+      gpsLatitude: gps.lat,
+      gpsLongitude: gps.lng,
+      photoPaths: photos.map((f) => f.path).toList(),
+      createdAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    final outcome = await OfflineOutbox().submitClose(entry);
+    if (!mounted) return;
+    if (outcome == OutboxResult.queued) {
+      ref
+          .read(routeProvider.notifier)
+          .applyLocalClose(
+            stopId: s.id,
+            status: status == StopStatus.completed.value
+                ? StopStatus.completed
+                : StopStatus.failed,
+            failureReason: reason,
+            notes: notes,
+            customFields: customFields,
+          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sin señal: el cierre se guardó y se enviará al recuperar conexión.',
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } else {
+      await ref.read(routeProvider.notifier).refresh();
+    }
+  }
+
+  bool _isTerminalState(WorkflowState state) =>
+      state.systemState == StopStatus.completed.value ||
+      state.systemState == StopStatus.failed.value;
+
   Future<void> _handleWorkflowTransition(
     RouteStop s,
     WorkflowState targetState,
@@ -359,6 +416,17 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
 
     if (needsPhoto || needsReason || needsNotes) {
       _showWorkflowActionSheet(s, targetState);
+      return;
+    }
+
+    // Terminales sin extras → outbox (sobreviven sin señal).
+    if (_isTerminalState(targetState)) {
+      setState(() => _isProcessing = true);
+      try {
+        await _closeViaOutbox(s, status: targetState.systemState);
+      } finally {
+        if (mounted) setState(() => _isProcessing = false);
+      }
       return;
     }
 
@@ -403,6 +471,21 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     Navigator.pop(context);
     setState(() => _isProcessing = true);
     try {
+      // Terminales → outbox-first: las fotos van como rutas locales y el
+      // outbox las sube al sincronizar. Antes este camino subía las fotos
+      // online-only y abortaba sin señal ("No se pudo subir la foto…").
+      if (_isTerminalState(targetState)) {
+        await _closeViaOutbox(
+          s,
+          status: targetState.systemState,
+          photos: photos,
+          notes: notes,
+          reason: reason,
+        );
+        return;
+      }
+
+      // No-terminales (raros con fotos): flujo online original.
       final evidenceUrls = <String>[];
       if (photos.isNotEmpty) {
         final trackingId = s.order?.trackingId ?? s.id;
@@ -444,7 +527,7 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
         );
       }
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 }
@@ -558,12 +641,14 @@ class _MapPeekHeader extends StatelessWidget {
   }
 
   String? _formatEta(RouteStop s) {
-    final end = s.timeWindow?.end;
-    if (end == null) return null;
-    final local = end.toLocal();
+    // El ETA en vivo (posición real del driver) manda; el fin de la
+    // ventana horaria queda como fallback para planes sin recálculo.
+    final eta = s.liveEtaAt ?? s.timeWindow?.end;
+    if (eta == null) return null;
+    final local = eta.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
-    return 'ETA $hh:$mm';
+    return s.liveEtaAt != null ? 'ETA $hh:$mm · en vivo' : 'ETA $hh:$mm';
   }
 }
 

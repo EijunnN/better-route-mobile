@@ -75,6 +75,13 @@ class ChatService {
     return ChatMessage.fromJson(data);
   }
 
+  /// Marca leídos los mensajes despacho→driver del hilo propio. Es la
+  /// base del "Leído" que ve el despachador en sus mensajes. Best-effort:
+  /// el caller decide si ignora errores (no debe bloquear el chat).
+  Future<void> markThreadRead(String driverId) async {
+    await _api.post<Map<String, dynamic>>(ApiConfig.chatRead(driverId));
+  }
+
   /// Fetch a short-lived Centrifugo connection token. The SDK calls this
   /// via its `getToken` callback on connect and again before expiry.
   Future<String> getRealtimeToken() async {

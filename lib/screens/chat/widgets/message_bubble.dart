@@ -114,6 +114,20 @@ class MessageBubble extends StatelessWidget {
                       _formatTime(message.createdAt),
                       style: AppTypography.monoSmall,
                     ),
+                    // Read receipt en los mensajes propios del driver:
+                    // ✓ enviado, ✓✓ lima cuando el despachador lo leyó.
+                    if (!inbound) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        message.readAt != null ? '✓✓' : '✓',
+                        style: AppTypography.monoSmall.copyWith(
+                          color: message.readAt != null
+                              ? AppColors.accentLive
+                              : AppColors.fgSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -36,6 +36,8 @@ class ApiConfig {
   // the logged-in user's id.
   static String chatMessages(String driverId) =>
       '/api/chat/conversations/$driverId/messages';
+  static String chatRead(String driverId) =>
+      '/api/chat/conversations/$driverId/read';
   static const String realtimeToken = '/api/realtime/token';
 
   /// Centrifugo realtime WebSocket URL — supplied at build time via

@@ -23,7 +23,7 @@ class StopRow extends StatelessWidget {
   });
 
   String _arrivalLabel() {
-    final t = stop.estimatedArrival;
+    final t = stop.effectiveEta;
     if (t == null) return '--:--';
     final local = t.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';

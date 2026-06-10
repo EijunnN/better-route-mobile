@@ -119,6 +119,10 @@ class RouteStop {
   final double latitude;
   final double longitude;
   final DateTime? estimatedArrival;
+
+  /// ETA recalculado en vivo desde la posición actual del driver (OSRM,
+  /// vía Redis del backend). Null cuando no hay cálculo vigente.
+  final DateTime? liveEtaAt;
   final TimeWindow? timeWindow;
   final DateTime? startedAt;
   final DateTime? completedAt;
@@ -151,6 +155,7 @@ class RouteStop {
     required this.latitude,
     required this.longitude,
     this.estimatedArrival,
+    this.liveEtaAt,
     this.timeWindow,
     this.startedAt,
     this.completedAt,
@@ -182,6 +187,9 @@ class RouteStop {
       estimatedArrival: json['estimatedArrival'] != null
           ? DateTime.tryParse(json['estimatedArrival'] as String)
           : null,
+      liveEtaAt: json['liveEtaAt'] != null
+          ? DateTime.tryParse(json['liveEtaAt'] as String)
+          : null,
       timeWindow: json['timeWindow'] != null
           ? TimeWindow.fromJson(json['timeWindow'] as Map<String, dynamic>)
           : null,
@@ -208,6 +216,10 @@ class RouteStop {
     );
   }
 
+  /// Mejor ETA disponible: el recálculo en vivo manda sobre el horario
+  /// planificado por el solver.
+  DateTime? get effectiveEta => liveEtaAt ?? estimatedArrival;
+
   /// Display name for the stop
   String get displayName {
     return order?.customerName ?? 'Parada #$sequence';
@@ -227,6 +239,7 @@ class RouteStop {
     double? latitude,
     double? longitude,
     DateTime? estimatedArrival,
+    DateTime? liveEtaAt,
     TimeWindow? timeWindow,
     DateTime? startedAt,
     DateTime? completedAt,
@@ -247,6 +260,7 @@ class RouteStop {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       estimatedArrival: estimatedArrival ?? this.estimatedArrival,
+      liveEtaAt: liveEtaAt ?? this.liveEtaAt,
       timeWindow: timeWindow ?? this.timeWindow,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,

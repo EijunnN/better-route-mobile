@@ -114,17 +114,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> enterScreen() async {
     _screenVisible = true;
     _idleTimer?.cancel();
-    if (_driverId == null) return;
+    final driverId = _driverId;
+    if (driverId == null) return;
 
-    if (state.messages.isEmpty) {
-      await _loadInitial();
-    }
+    // Recargar siempre: además de mensajes nuevos trae los readAt
+    // frescos — el "Leído" del despachador sobre los mensajes del driver.
+    await _loadInitial();
 
     await _ensureConnected();
 
-    // No read-receipt call here: the conversation /read endpoint is
-    // dispatch-scoped and 403s for CONDUCTOR. Unread bookkeeping is the
-    // dispatcher's concern; the driver app has no unread counter.
+    // Read receipt del driver: estampa readAt en los mensajes
+    // despacho→driver para que el despachador vea "Leído". Best-effort:
+    // sin señal no se marca ahora y se reintenta al volver a abrir.
+    unawaited(_service.markThreadRead(driverId).catchError((_) {}));
   }
 
   /// Call from the chat screen's `dispose`.
