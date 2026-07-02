@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -270,8 +271,10 @@ void main() {
       OutboxResult.queued,
     );
 
-    // retryCount > 60 → se dropea para no loopear infinito.
+    // retryCount > 60 → se dropea para no loopear infinito. Hook explícito:
+    // el drop debe salir del contador, no de heredar el fallo del caso previo.
     SharedPreferences.setMockInitialValues({});
+    fake.onCompleteStop = () async => throw networkError();
     final exhausted = outbox();
     await exhausted.submitClose(
       close(stopId: 'stop-exhausted', retryCount: AppConstants.outboxMaxRetries),
@@ -323,5 +326,138 @@ void main() {
 
     // Y el outbox sigue operativo después del descarte.
     expect(await ob2.submitClose(close()), OutboxResult.synced);
+  });
+
+  // 7. Resume-safe REAL (spec §3): un crash tras subir 2 de 3 fotos deja
+  //    uploadedByPath persistido; el drain de una instancia nueva solo
+  //    sube la 3ª.
+  test('crash tras subir 2 de 3 fotos: el drain nuevo no re-sube 1 y 2',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('outbox_resume');
+    addTearDown(() => dir.delete(recursive: true));
+    final a = await File('${dir.path}/a.jpg').writeAsString('a');
+    final b = await File('${dir.path}/b.jpg').writeAsString('b');
+    final c = await File('${dir.path}/c.jpg').writeAsString('c');
+
+    var uploads = 0;
+    fake.onUploadEvidencePhoto = () async {
+      uploads++;
+      if (uploads == 3) throw networkError(); // se corta subiendo la 3ª
+    };
+
+    final result = await outbox().submitClose(
+      close(photoPaths: [a.path, b.path, c.path]),
+    );
+    expect(result, OutboxResult.queued);
+
+    // Lo persistido a disco ya registra las fotos 1 y 2 (no la 3ª).
+    final entries = jsonDecode((await rawOutbox())!) as List;
+    final uploadedByPath = Map<String, String>.from(
+      (entries.single as Map<String, dynamic>)['uploadedByPath'] as Map,
+    );
+    expect(uploadedByPath.keys, containsAll([a.path, b.path]));
+    expect(uploadedByPath.containsKey(c.path), isFalse);
+
+    // "Kill" + instancia nueva: solo la 3ª foto se sube, con SU índice.
+    fake.onUploadEvidencePhoto = null;
+    fake.uploadCalls.clear();
+    final reborn = outbox();
+    await reborn.flush();
+
+    expect(fake.uploadCalls, [(path: c.path, index: 3)]);
+    expect(fake.completeCalls.single.evidenceUrls, hasLength(3));
+    expect(await rawOutbox(), '[]');
+  });
+
+  // 8. Head-of-line: un 409 permanente en la cabeza es fallo per-entrada,
+  //    no de transporte — la cola sincroniza igual.
+  test('un 409 en la cabeza no retiene los cierres siguientes', () async {
+    fake.onCompleteStop = () async => throw networkError();
+    final ob = outbox();
+    await ob.submitClose(close(stopId: 'stop-head'));
+    await ob.submitClose(close(stopId: 'stop-tail'));
+    expect(ob.pendingCount.value, 2);
+
+    // Vuelve la red: la cabeza sigue chocando con el lock optimista (409);
+    // la cola debe sincronizar en el mismo flush.
+    fake.onCompleteStop = () async {
+      if (fake.completeCalls.last.stopId == 'stop-head') throw httpError(409);
+    };
+    await ob.flush();
+
+    expect(fake.completeCalls.map((cll) => cll.stopId), contains('stop-tail'));
+    expect(ob.pendingCount.value, 1, reason: 'solo la cabeza queda encolada');
+  });
+
+  test('fallo de transporte en la cabeza corta el flush entero', () async {
+    fake.onCompleteStop = () async => throw networkError();
+    final ob = outbox();
+    await ob.submitClose(close(stopId: 'stop-a'));
+    await ob.submitClose(close(stopId: 'stop-b'));
+    fake.completeCalls.clear();
+
+    await ob.flush(); // sigue sin red
+
+    expect(
+      fake.completeCalls.map((cll) => cll.stopId),
+      ['stop-a'],
+      reason: 'sin red no tiene sentido intentar el resto',
+    );
+    expect(ob.pendingCount.value, 2);
+  });
+
+  // 9. Carrera submitClose vs drain in-flight: el drain viejo (generación
+  //    stale) no debe clobberear el re-cierre que lo reemplazó.
+  test('re-cierre durante un drain in-flight no es clobbereado', () async {
+    fake.onCompleteStop = () async => throw networkError();
+    final ob = outbox();
+    await ob.submitClose(close(stopId: 'stop-1', status: 'COMPLETED'));
+
+    // Drain viejo colgado en el PATCH del cierre COMPLETED.
+    final gate = Completer<void>();
+    fake.onCompleteStop = () async {
+      await gate.future;
+      throw networkError();
+    };
+    final draining = ob.flush();
+
+    // Re-cierre mientras el drain está in-flight: ahora es FAILED.
+    fake.onFailStop = () async => throw networkError();
+    await ob.submitClose(
+      close(stopId: 'stop-1', status: 'FAILED', failureReason: 'Ausente'),
+    );
+
+    gate.complete();
+    await draining;
+
+    // La entrada viva es la FAILED nueva: el drain viejo no la removió ni
+    // le pisó status/retryCount con la copia stale.
+    expect(ob.pendingCount.value, 1);
+    final entries = jsonDecode((await rawOutbox())!) as List;
+    final entry = entries.single as Map<String, dynamic>;
+    expect(entry['status'], 'FAILED');
+    expect(entry['generation'], 1);
+    expect(entry['retryCount'], 1,
+        reason: 'solo el intento del propio submitClose');
+  });
+
+  // 10. Spec §5: tras un drain que sincronizó al menos un cierre, el outbox
+  //     notifica para que el provider refetchee my-route.
+  test('un drain exitoso notifica a los listeners; uno fallido no', () async {
+    fake.onCompleteStop = () async => throw networkError();
+    final ob = outbox();
+    await ob.submitClose(close());
+
+    var drains = 0;
+    void listener() => drains++;
+    ob.addDrainListener(listener);
+    addTearDown(() => ob.removeDrainListener(listener));
+
+    await ob.flush(); // sigue offline — no notifica
+    expect(drains, 0);
+
+    fake.onCompleteStop = null;
+    await ob.flush(); // sincroniza — una sola notificación por flush
+    expect(drains, 1);
   });
 }

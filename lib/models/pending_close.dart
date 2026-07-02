@@ -32,6 +32,11 @@ class PendingClose {
   final int createdAtMs;
   final int retryCount;
 
+  /// Bumped by the outbox each time a re-close replaces this stop's entry.
+  /// An in-flight drain of a stale generation aborts instead of clobbering
+  /// the replacement (removing it or overwriting its retry/upload state).
+  final int generation;
+
   const PendingClose({
     required this.id,
     required this.stopId,
@@ -46,11 +51,13 @@ class PendingClose {
     this.photoPaths = const [],
     this.uploadedByPath = const {},
     this.retryCount = 0,
+    this.generation = 0,
   });
 
   PendingClose copyWith({
     Map<String, String>? uploadedByPath,
     int? retryCount,
+    int? generation,
   }) {
     return PendingClose(
       id: id,
@@ -66,6 +73,7 @@ class PendingClose {
       photoPaths: photoPaths,
       uploadedByPath: uploadedByPath ?? this.uploadedByPath,
       retryCount: retryCount ?? this.retryCount,
+      generation: generation ?? this.generation,
     );
   }
 
@@ -83,6 +91,7 @@ class PendingClose {
     'uploadedByPath': uploadedByPath,
     'createdAtMs': createdAtMs,
     'retryCount': retryCount,
+    'generation': generation,
   };
 
   factory PendingClose.fromJson(Map<String, dynamic> j) {
@@ -106,6 +115,7 @@ class PendingClose {
           ? Map<String, String>.from(j['uploadedByPath'] as Map)
           : const {},
       retryCount: (j['retryCount'] as num?)?.toInt() ?? 0,
+      generation: (j['generation'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -14,6 +14,12 @@ import 'workflow_service.dart';
 
 enum OutboxResult { synced, queued }
 
+/// How a single drain attempt ended. `retryTransport` (no network) aborts
+/// the whole flush — the remaining entries would fail the same way — while
+/// `retryEntry` (409/5xx on this close) lets the flush move on so one stuck
+/// head doesn't hold every later close hostage for the next timer cycle.
+enum _FlushOutcome { synced, dropped, superseded, retryEntry, retryTransport }
+
 /// Rejection at enqueue time: a FAILED close without a reason while the
 /// cached delivery policy declares failure reasons. Persisting it would be a
 /// guaranteed 400 → drop on drain — the failure would never reach dispatch.
@@ -60,7 +66,18 @@ class OfflineOutbox {
   /// Number of pending (not-yet-synced) closes. UI watches this.
   final ValueNotifier<int> pendingCount = ValueNotifier<int>(0);
 
+  /// Fired once per flush that synced at least one close (spec §5: after a
+  /// successful drain the route must be refetched — the server row is the
+  /// only render source for a synced stop).
+  final List<VoidCallback> _drainListeners = [];
+
   String? lastError;
+
+  void addDrainListener(VoidCallback listener) =>
+      _drainListeners.add(listener);
+
+  void removeDrainListener(VoidCallback listener) =>
+      _drainListeners.remove(listener);
 
   Future<void> _ensureLoaded() async {
     if (_loaded) return;
@@ -94,6 +111,13 @@ class OfflineOutbox {
 
   bool hasPendingFor(String stopId) => _entries.any((e) => e.stopId == stopId);
 
+  /// Live entries keyed by stop, loading from disk first so a cold-start
+  /// merge (spec §5) doesn't miss closes queued in a prior session.
+  Future<Map<String, PendingClose>> pendingByStopId() async {
+    await _ensureLoaded();
+    return {for (final e in _entries) e.stopId: e};
+  }
+
   /// Enqueue a close and try to sync it immediately. Returns
   /// [OutboxResult.synced] when it reached the server, or
   /// [OutboxResult.queued] when it stays pending (no signal).
@@ -108,14 +132,23 @@ class OfflineOutbox {
     }
 
     await _ensureLoaded();
-    // Dedup by stop — a stop has at most one pending close.
-    _entries.removeWhere((e) => e.stopId == entry.stopId);
-    _entries.add(entry);
+    // Dedup by stop — a stop has at most one pending close. A replacement
+    // bumps the generation so an in-flight drain of the old entry aborts
+    // instead of clobbering this one.
+    final priorIndex = _entries.indexWhere((e) => e.stopId == entry.stopId);
+    final stamped = priorIndex >= 0
+        ? entry.copyWith(generation: _entries[priorIndex].generation + 1)
+        : entry;
+    if (priorIndex >= 0) _entries.removeAt(priorIndex);
+    _entries.add(stamped);
     await _persist();
     _notify();
 
-    final synced = await _flushOne(entry);
-    return synced ? OutboxResult.synced : OutboxResult.queued;
+    final outcome = await _flushOne(stamped);
+    return outcome == _FlushOutcome.retryEntry ||
+            outcome == _FlushOutcome.retryTransport
+        ? OutboxResult.queued
+        : OutboxResult.synced;
   }
 
   /// Try to sync every queued close. Safe to call repeatedly.
@@ -123,28 +156,35 @@ class OfflineOutbox {
     await _ensureLoaded();
     if (_flushing || _entries.isEmpty) return;
     _flushing = true;
+    var syncedAny = false;
     try {
       for (final entry in List<PendingClose>.from(_entries)) {
-        if (!_entries.any((e) => e.id == entry.id)) continue;
-        final settled = await _flushOne(entry);
-        // Still queued after attempting => offline; the rest will fail too.
-        if (!settled && _entries.any((e) => e.id == entry.id)) break;
+        if (!_isCurrent(entry)) continue;
+        final outcome = await _flushOne(entry);
+        if (outcome == _FlushOutcome.synced) syncedAny = true;
+        // No network — the rest would fail the same way. A per-entry HTTP
+        // failure (409/5xx) moves on so it can't starve the later closes.
+        if (outcome == _FlushOutcome.retryTransport) break;
       }
     } finally {
       _flushing = false;
     }
+    if (syncedAny) {
+      for (final listener in List<VoidCallback>.from(_drainListeners)) {
+        listener();
+      }
+    }
   }
 
-  /// Returns true when the entry no longer needs to be queued (synced, or
-  /// permanently rejected). False means it stays queued (offline / 5xx).
-  Future<bool> _flushOne(PendingClose entry) async {
+  Future<_FlushOutcome> _flushOne(PendingClose entry) async {
+    var current = entry;
     try {
       // 1. Upload photos not yet uploaded (resume-safe via uploadedByPath).
       // FIX-1: presign with index = position + 1, like the online path —
       // without it the R2 key is deterministic per trackingId and photos
       // 2..N overwrite the first.
-      var current = entry;
       for (var i = 0; i < entry.photoPaths.length; i++) {
+        if (!_isCurrent(current)) return _FlushOutcome.superseded;
         final path = entry.photoPaths[i];
         if (current.uploadedByPath.containsKey(path)) continue;
         final file = File(path);
@@ -157,7 +197,7 @@ class OfflineOutbox {
         final map = Map<String, String>.from(current.uploadedByPath)
           ..[path] = url;
         current = current.copyWith(uploadedByPath: map);
-        _replace(current);
+        _replaceIfCurrent(current);
         await _persist();
       }
 
@@ -165,6 +205,10 @@ class OfflineOutbox {
           .map((p) => current.uploadedByPath[p])
           .whereType<String>()
           .toList();
+
+      // A re-close replaced this entry while we were uploading — its own
+      // flush owns the PATCH now.
+      if (!_isCurrent(current)) return _FlushOutcome.superseded;
 
       // 2. PATCH the close. The backend no-ops a re-sent terminal status, so
       // a retry after a lost ack can't create a duplicate delivery visit.
@@ -188,32 +232,38 @@ class OfflineOutbox {
         );
       }
 
-      _removeById(current.id);
-      await _persist();
-      _notify();
-      return true;
+      if (_removeIfCurrent(current)) {
+        await _persist();
+        _notify();
+      }
+      return _FlushOutcome.synced;
     } catch (e) {
+      if (!_isCurrent(current)) return _FlushOutcome.superseded;
       if (_isRetryable(e)) {
-        final bumped = entry.copyWith(retryCount: entry.retryCount + 1);
+        // Bump from `current`, not `entry`: `current` carries the photo
+        // uploads persisted during this attempt (resume-safe, spec §3).
+        final bumped = current.copyWith(retryCount: current.retryCount + 1);
         if (bumped.retryCount > AppConstants.outboxMaxRetries) {
           // Give up to avoid an infinite loop; surface the failure.
           lastError = 'No se pudo sincronizar el cierre de ${entry.stopId}: $e';
-          _removeById(entry.id);
+          _removeIfCurrent(current);
           await _persist();
           _notify();
-          return true;
+          return _FlushOutcome.dropped;
         }
-        _replace(bumped);
+        _replaceIfCurrent(bumped);
         await _persist();
-        return false; // stays queued (offline / transient)
+        return _isTransportFailure(e)
+            ? _FlushOutcome.retryTransport
+            : _FlushOutcome.retryEntry;
       }
       // 4xx — the server rejected the close (validation/transition). Drop it
       // so it doesn't loop forever, and surface the reason.
       lastError = e.toString();
-      _removeById(entry.id);
+      _removeIfCurrent(current);
       await _persist();
       _notify();
-      return true;
+      return _FlushOutcome.dropped;
     }
   }
 
@@ -236,12 +286,31 @@ class OfflineOutbox {
   bool _isRetryableStatus(int? status) =>
       status == null || status >= 500 || status == 409;
 
-  void _replace(PendingClose entry) {
-    final i = _entries.indexWhere((e) => e.id == entry.id);
+  /// Transport-level failure (never reached the server) vs an HTTP answer
+  /// for this specific entry. Only the former justifies aborting the flush.
+  bool _isTransportFailure(Object e) =>
+      e is DioException && e.response == null;
+
+  /// The queue still holds this exact entry (same stop, same generation).
+  /// False means a re-close replaced it while this attempt was in flight.
+  bool _isCurrent(PendingClose entry) => _entries.any(
+        (e) => e.id == entry.id && e.generation == entry.generation,
+      );
+
+  void _replaceIfCurrent(PendingClose entry) {
+    final i = _entries.indexWhere(
+      (e) => e.id == entry.id && e.generation == entry.generation,
+    );
     if (i >= 0) _entries[i] = entry;
   }
 
-  void _removeById(String id) => _entries.removeWhere((e) => e.id == id);
+  bool _removeIfCurrent(PendingClose entry) {
+    final before = _entries.length;
+    _entries.removeWhere(
+      (e) => e.id == entry.id && e.generation == entry.generation,
+    );
+    return _entries.length != before;
+  }
 
   /// Start the periodic background flush. Idempotent. Kicks once immediately
   /// to cover an app cold-start that has queued closes from a prior session.

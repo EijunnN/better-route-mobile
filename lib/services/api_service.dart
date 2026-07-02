@@ -163,10 +163,19 @@ class ApiService {
         await _storage.saveRefreshToken(newRefreshToken);
         completer.complete(newAccessToken);
       } catch (e) {
-        if (e is DioException && e.response?.statusCode == 401) {
-          await _storage.clearAll();
-        }
+        final sessionRevoked =
+            e is DioException && e.response?.statusCode == 401;
+        // Complete BEFORE touching storage: if clearAll throws (keystore
+        // PlatformException) after the refresh failed, every 401 awaiting
+        // this completer would hang forever.
         completer.complete(null);
+        if (sessionRevoked) {
+          try {
+            await _storage.clearAll();
+          } catch (_) {
+            // Best effort — the session is already dead server-side.
+          }
+        }
       } finally {
         _refreshCompleter = null;
       }

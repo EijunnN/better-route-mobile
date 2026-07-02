@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
+import '../models/pending_close.dart';
 import '../services/route_service.dart';
 import '../services/api_service.dart';
 import '../services/offline_outbox.dart';
@@ -50,9 +51,24 @@ class RouteState {
 /// Route notifier
 class RouteNotifier extends StateNotifier<RouteState> {
   final RouteService _routeService;
+  final OfflineOutbox _outbox;
   final TrackingService _trackingService = TrackingService();
 
-  RouteNotifier(this._routeService) : super(const RouteState());
+  RouteNotifier(this._routeService, {OfflineOutbox? outbox})
+      : _outbox = outbox ?? OfflineOutbox(),
+        super(const RouteState()) {
+    _outbox.addDrainListener(_onDrainSuccess);
+  }
+
+  /// Spec §5: after a successful drain, refetch — the PATCH response is
+  /// never a render source, and the synced stops now live on the server.
+  void _onDrainSuccess() => refresh();
+
+  @override
+  void dispose() {
+    _outbox.removeDrainListener(_onDrainSuccess);
+    super.dispose();
+  }
 
   /// Push the active route context into TrackingService so location pings
   /// carry stopSequence/jobId/routeId. Called after every route load and
@@ -79,15 +95,20 @@ class RouteNotifier extends StateNotifier<RouteState> {
 
     try {
       final data = await _routeService.getMyRoute();
+      // Spec §5: a stop with a live outbox entry keeps its local terminal
+      // state — the server still sees it PENDING/IN_PROGRESS until the
+      // drain completes, and rendering the server row would resurrect a
+      // stop the driver already closed offline.
+      final merged = _withPendingCloses(data, await _outbox.pendingByStopId());
       state = state.copyWith(
-        data: data,
+        data: merged,
         isLoading: false,
         isRefreshing: false,
         lastUpdated: DateTime.now(),
       );
-      _syncTrackingContext(data);
+      _syncTrackingContext(merged);
       // We have connectivity — drain any closes queued from a no-signal zone.
-      OfflineOutbox().flush();
+      _outbox.flush();
     } on ApiException catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -106,6 +127,40 @@ class RouteNotifier extends StateNotifier<RouteState> {
   /// Refresh route data
   Future<void> refresh() => loadRoute(refresh: true);
 
+  /// Overlay pending offline closes onto the server route (spec §5). Built
+  /// from the queued entry itself so a cold start (queue on disk, no local
+  /// state yet) shows the same terminal state `applyLocalClose` painted.
+  DriverRouteData _withPendingCloses(
+    DriverRouteData data,
+    Map<String, PendingClose> pending,
+  ) {
+    final route = data.route;
+    if (route == null || pending.isEmpty) return data;
+    final stops = route.stops.map((s) {
+      final close = pending[s.id];
+      if (close == null || s.status.isDone) return s;
+      return s.copyWith(
+        status: StopStatus.fromString(close.status),
+        completedAt: DateTime.fromMillisecondsSinceEpoch(close.createdAtMs),
+        failureReason: close.failureReason,
+        notes: close.notes,
+        customFields: close.customFields,
+      );
+    }).toList();
+    return DriverRouteData(
+      driver: data.driver,
+      vehicle: data.vehicle,
+      route: RouteInfo(
+        id: route.id,
+        jobId: route.jobId,
+        jobCreatedAt: route.jobCreatedAt,
+        geometry: route.geometry,
+        stops: stops,
+      ),
+      metrics: data.metrics,
+    );
+  }
+
   /// Start a stop
   Future<bool> startStop(String stopId) async {
     try {
@@ -117,64 +172,15 @@ class RouteNotifier extends StateNotifier<RouteState> {
     }
   }
 
-  /// Complete a stop with evidence. [gpsLatitude]/[gpsLongitude] are the
-  /// device position captured at closing time (audit trail), absent when
-  /// no GPS fix is available.
-  Future<bool> completeStop({
-    required String stopId,
-    required List<String> evidenceUrls,
-    String? notes,
-    String? gpsLatitude,
-    String? gpsLongitude,
-    Map<String, dynamic>? customFields,
-  }) async {
-    try {
-      await _routeService.completeStop(
-        stopId: stopId,
-        evidenceUrls: evidenceUrls,
-        notes: notes,
-        gpsLatitude: gpsLatitude,
-        gpsLongitude: gpsLongitude,
-        customFields: customFields,
-      );
-      await refresh();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Fail a stop with reason. [reason] is the verbatim per-company policy
-  /// string the driver selected. [gpsLatitude]/[gpsLongitude] are the
-  /// device position captured at closing time (audit trail).
-  Future<bool> failStop({
-    required String stopId,
-    required String reason,
-    List<String>? evidenceUrls,
-    String? notes,
-    String? gpsLatitude,
-    String? gpsLongitude,
-  }) async {
-    try {
-      await _routeService.failStop(
-        stopId: stopId,
-        reason: reason,
-        evidenceUrls: evidenceUrls,
-        notes: notes,
-        gpsLatitude: gpsLatitude,
-        gpsLongitude: gpsLongitude,
-      );
-      await refresh();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Transition a stop to a new workflow state. [workflowStateId] is kept
-  /// in the signature for callers that still pass the target state id, but
-  /// the backend crystallized its state machine and now derives everything
-  /// from [systemState] alone — only the resulting status is sent.
+  /// Transition a stop to a new NON-terminal workflow state.
+  /// [workflowStateId] is kept in the signature for callers that still pass
+  /// the target state id, but the backend crystallized its state machine and
+  /// now derives everything from [systemState] alone — only the resulting
+  /// status is sent.
+  ///
+  /// Terminal closes (COMPLETED/FAILED) must go through
+  /// [OfflineOutbox.submitClose]: a direct PATCH bypasses the offline queue
+  /// and the FIX-2 failure-reason gate.
   Future<bool> transitionStop({
     required String stopId,
     required String workflowStateId,
@@ -183,8 +189,15 @@ class RouteNotifier extends StateNotifier<RouteState> {
     String? failureReason,
     List<String>? evidenceUrls,
   }) async {
+    final status = StopStatus.fromString(systemState);
+    if (status.isDone) {
+      throw ArgumentError.value(
+        systemState,
+        'systemState',
+        'Los cierres terminales van por OfflineOutbox.submitClose',
+      );
+    }
     try {
-      final status = StopStatus.fromString(systemState);
       await _routeService.updateStopStatus(
         stopId: stopId,
         status: status,

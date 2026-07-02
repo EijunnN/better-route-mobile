@@ -9,9 +9,11 @@ import '../app/app.dart';
 import '../shared/shared.dart';
 
 /// Result of the failure sheet. [reason] is the exact per-company policy
-/// string the driver picked (verbatim — never a code).
+/// string the driver picked (verbatim — never a code). Null only when the
+/// policy exposes no reasons (cold start offline / list cleared by the
+/// operator), mirroring the outbox gate (spec §4).
 typedef FailureResult = ({
-  String reason,
+  String? reason,
   String? notes,
   List<File> photos,
 });
@@ -89,7 +91,10 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
   }
 
   void _confirm() {
-    if (!_hasSelection) {
+    // Sin motivos en la policy (cold start offline / lista vacía) el gate se
+    // apaga — igual que el gate del outbox (spec §4). Exigir selección acá
+    // dejaría al driver sin poder reportar el fallo.
+    if (!_hasSelection && widget.reasons.isNotEmpty) {
       _alert('Motivo requerido', 'Seleccioná un motivo para continuar.');
       return;
     }
@@ -98,7 +103,7 @@ class _FailureReasonSheetState extends State<FailureReasonSheet> {
       return;
     }
     final FailureResult result = (
-      reason: _selectedReason!,
+      reason: _selectedReason,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
