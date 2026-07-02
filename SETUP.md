@@ -1,12 +1,11 @@
-# AEA - App de Entregas para Conductores
+# BetterRoute — App del Conductor (setup)
 
 Aplicacion movil Flutter para conductores de delivery. Permite visualizar rutas asignadas, gestionar entregas y registrar evidencia fotografica.
 
 ## Requisitos Previos
 
 ### Desarrollo
-- Flutter SDK 3.19+
-- Dart SDK 3.3+
+- Flutter SDK con Dart 3.10+ (el `pubspec.yaml` exige `sdk: ^3.10.7`)
 - Android Studio / VS Code con extensiones Flutter
 - Android SDK (para Android)
 - Xcode (para iOS, solo en macOS)
@@ -95,29 +94,19 @@ Antes de que un conductor pueda usar la app:
 
 ```
 lib/
-├── core/
-│   ├── constants.dart      # URLs y configuracion
-│   └── theme.dart          # Colores y estilos
-├── models/
-│   ├── driver_info.dart    # Modelo del conductor
-│   ├── vehicle.dart        # Modelo del vehiculo
-│   ├── route_stop.dart     # Modelo de parada
-│   └── route_data.dart     # Modelo de ruta completa
-├── providers/
-│   ├── auth_provider.dart      # Estado de autenticacion
-│   ├── route_provider.dart     # Estado de la ruta
-│   └── location_provider.dart  # GPS y ubicacion
-├── screens/
-│   ├── login_screen.dart       # Pantalla de login
-│   ├── home_screen.dart        # Lista de paradas
-│   └── stop_detail_screen.dart # Detalle de entrega
-├── services/
-│   ├── api_service.dart    # Cliente HTTP (Dio)
-│   ├── auth_service.dart   # Autenticacion JWT
-│   └── route_service.dart  # API de rutas
-├── widgets/
-│   ├── stop_card.dart      # Tarjeta de parada
-│   └── ...
+├── core/        constants (URLs/config) · theme · design tokens · polyline
+├── models/      user · driver_info · vehicle · route_data · route_stop ·
+│                pending_close (outbox) · chat_message · field_definition ·
+│                workflow_state — barrel models.dart
+├── providers/   auth · route · location · tracking · chat ·
+│                field_definition · workflow — barrel providers.dart
+├── services/    api (Dio) · auth · storage · route · location · tracking ·
+│                offline_outbox · chat · push_router · field_definition ·
+│                workflow
+├── screens/     splash · login · onboarding · permissions · home ·
+│                stop_detail · success · end_of_day · chat · route_map
+├── widgets/     componentes compartidos
+├── router/      go_router
 └── main.dart
 ```
 
@@ -127,11 +116,18 @@ La app consume los siguientes endpoints:
 
 | Endpoint | Metodo | Descripcion |
 |----------|--------|-------------|
-| `/auth/login` | POST | Login con email/password |
-| `/auth/refresh` | POST | Renovar access token |
-| `/mobile/driver/my-route` | GET | Obtener ruta del dia |
-| `/route-stops/{id}` | PATCH | Actualizar estado de parada |
-| `/upload/presigned-url` | GET | Obtener URL para subir foto |
+| `/api/auth/login` | POST | Login con email/password |
+| `/api/auth/refresh` | POST | Renovar access token |
+| `/api/auth/logout` | POST | Cerrar sesion |
+| `/api/mobile/driver/my-route` | GET | Obtener ruta del dia |
+| `/api/mobile/driver/delivery-policy` | GET | Politica de entrega (estados + motivos) |
+| `/api/mobile/driver/field-definitions` | GET | Campos personalizados (showInMobile) |
+| `/api/mobile/driver/location` | POST | Ping de ubicacion GPS |
+| `/api/route-stops/{id}` | PATCH | Actualizar estado de parada |
+| `/api/upload/presigned-url` | GET | Obtener URL presignada para subir foto |
+| `/api/chat/conversations/{driverId}/messages` | GET / POST | Chat con despacho |
+| `/api/chat/conversations/{driverId}/read` | POST | Marcar hilo como leido |
+| `/api/realtime/token` | GET | Token de conexion Centrifugo (WS) |
 
 ### Headers Requeridos
 
@@ -146,9 +142,11 @@ Content-Type: application/json
 
 La app usa JWT con tokens de acceso y refresh:
 
-- **Access Token**: Expira en 15 minutos
+- **Access Token**: Expira en 15 minutos (24 horas en desarrollo)
 - **Refresh Token**: Expira en 7 dias
-- Los tokens se almacenan en `SharedPreferences`
+- Los tokens se almacenan en `flutter_secure_storage` (Keychain / EncryptedSharedPreferences)
+  via `lib/services/storage_service.dart`; `SharedPreferences` solo guarda el
+  outbox offline y el flag de onboarding
 - El interceptor de Dio renueva automaticamente tokens expirados
 
 ## Subida de Evidencia Fotografica
@@ -159,10 +157,12 @@ La app usa JWT con tokens de acceso y refresh:
 4. Se guarda la URL publica en la parada
 
 ```dart
-// Flujo simplificado
-final presigned = await routeService.getPresignedUrl(trackingId: 'TRACK123');
-await routeService.uploadEvidence(file: photo, uploadUrl: presigned.uploadUrl);
-// presigned.publicUrl contiene la URL final de la imagen
+// Flujo simplificado (presign + PUT a R2; index = posicion de la foto, 1..N)
+final publicUrl = await routeService.uploadEvidencePhoto(
+  photo: photo,
+  trackingId: 'TRACK123',
+  index: 1,
+);
 ```
 
 ## Estados de Parada

@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:centrifuge/centrifuge.dart' as cf;
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import '../models/chat_message.dart';
+import '../services/api_service.dart';
 import '../services/chat_service.dart';
 import 'auth_provider.dart';
 
@@ -248,11 +250,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
           try {
             return await _service.getRealtimeToken();
           } catch (e) {
-            // Throwing this stops reconnects permanently — only do it
-            // for genuine auth failure (401). Other errors are logged
-            // and let the SDK retry with backoff.
-            debugPrint('[chat] token fetch failed: $e');
-            throw cf.UnauthorizedException();
+            // UnauthorizedException stops reconnects PERMANENTLY — reserve
+            // it for a real 401 (FIX-5). Anything else (timeout, 5xx, red)
+            // se relanza para que el backoff del SDK (300 ms–30 s) siga.
+            if (_isAuthFailure(e)) {
+              debugPrint('[chat] token 401 — sesión inválida: $e');
+              throw cf.UnauthorizedException();
+            }
+            debugPrint('[chat] token fetch failed (transitorio): $e');
+            rethrow;
           }
         },
         minReconnectDelay: const Duration(milliseconds: 300),
@@ -286,6 +292,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     _client = client;
     await client.connect();
+  }
+
+  /// Un 401 del token endpoint = sesión terminada (tras el auto-refresh del
+  /// interceptor). El ApiService envuelve los errores en [ApiException]
+  /// dentro del [DioException]; cubrimos ambas formas por robustez.
+  static bool _isAuthFailure(Object e) {
+    if (e is ApiException) return e.isUnauthorized;
+    if (e is DioException) {
+      final inner = e.error;
+      if (inner is ApiException) return inner.isUnauthorized;
+      return e.response?.statusCode == 401;
+    }
+    return false;
   }
 
   void _onPublication(cf.ServerPublicationEvent event) {

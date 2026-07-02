@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../core/constants.dart';
+import '../core/contract_version.dart';
 import '../models/user.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
@@ -16,6 +18,33 @@ class AuthService {
   User? _currentUser;
   User? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
+
+  int? _serverContractVersion;
+
+  /// Versión de contrato que declaró el backend en el último login
+  /// (`x-br-contract`). Null cuando el header faltaba o no era numérico
+  /// (server anterior al handshake) — eso NO cuenta como mismatch.
+  int? get serverContractVersion => _serverContractVersion;
+
+  bool get contractMismatch =>
+      _serverContractVersion != null &&
+      _serverContractVersion != contractVersion;
+
+  /// Handshake del §10.2: compara el `x-br-contract` del server contra la
+  /// versión compilada en la app. En mismatch solo se advierte (log + estado
+  /// consultable por la UI); el contrato prohíbe bloquear al conductor —
+  /// server y app se despliegan coordinados (single-tenant per VPS).
+  void recordServerContractVersion(String? headerValue) {
+    _serverContractVersion =
+        headerValue != null ? int.tryParse(headerValue) : null;
+    if (contractMismatch) {
+      debugPrint(
+        '[CONTRACT] mismatch: server=$_serverContractVersion '
+        'app=$contractVersion — actualizar la app o el backend '
+        '(API-CONTRACT-MOBILE.md §10)',
+      );
+    }
+  }
 
   /// Initialize - check for existing session
   Future<bool> initialize() async {
@@ -50,6 +79,8 @@ class AuthService {
           'password': password,
         },
       );
+
+      recordServerContractVersion(response.headers.value(contractHeader));
 
       final authResponse = AuthResponse.fromJson(
         response.data as Map<String, dynamic>,

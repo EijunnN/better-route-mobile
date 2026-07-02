@@ -22,11 +22,25 @@ class WorkflowService {
 
   final ApiService _api = ApiService();
 
+  List<String> _cachedFailureReasons = const [];
+
+  /// Failure reasons from the last delivery-policy fetch. The offline
+  /// outbox reads this to refuse enqueueing a FAILED close without a
+  /// reason (FIX-2) — empty when the policy was never loaded this session,
+  /// which conservatively disables the gate.
+  List<String> get cachedFailureReasons => _cachedFailureReasons;
+
   /// Fetch the delivery policy + state machine and project it into the
   /// flat [WorkflowState] list the UI consumes.
   Future<List<WorkflowState>> getWorkflowStates() async {
     final response = await _api.get(ApiConfig.deliveryPolicyEndpoint);
-    final data = response.data['data'] as Map<String, dynamic>;
+    return parseDeliveryPolicy(response.data['data'] as Map<String, dynamic>);
+  }
+
+  /// Proyección pura del payload `data` de delivery-policy (§3.8) a la
+  /// lista de [WorkflowState]. Separada del fetch para que el contract-test
+  /// (test/contract/, §10.5) la ejerza sobre los fixtures golden.
+  List<WorkflowState> parseDeliveryPolicy(Map<String, dynamic> data) {
     final policy = data['policy'] as Map<String, dynamic>;
     final machine = data['stateMachine'] as Map<String, dynamic>;
 
@@ -37,6 +51,7 @@ class WorkflowService {
     final failureReasons = policy['failureReasons'] != null
         ? List<String>.from(policy['failureReasons'] as List)
         : const <String>[];
+    _cachedFailureReasons = failureReasons;
 
     return [
       for (var i = 0; i < states.length; i++)

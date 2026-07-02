@@ -375,7 +375,19 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
       photoPaths: photos.map((f) => f.path).toList(),
       createdAtMs: DateTime.now().millisecondsSinceEpoch,
     );
-    final outcome = await OfflineOutbox().submitClose(entry);
+    final OutboxResult outcome;
+    try {
+      outcome = await OfflineOutbox().submitClose(entry);
+    } on MissingFailureReasonException catch (e) {
+      // Backstop del gate FIX-2 — las vías de UI ya exigen motivo, pero si
+      // algo se lo saltó, avisamos en vez de perder el cierre en silencio.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+      return;
+    }
     if (!mounted) return;
     if (outcome == OutboxResult.queued) {
       ref
@@ -411,7 +423,12 @@ class _StopDetailScreenState extends ConsumerState<StopDetailScreen> {
     WorkflowState targetState,
   ) async {
     final needsPhoto = targetState.requiresPhoto;
-    final needsReason = targetState.requiresReason;
+    // FIX-2: un FAILED con motivos en la policy exige motivo aunque el flag
+    // `requiresReason` no venga seteado — sin motivo el cierre encolado
+    // muere en el drain (400 → drop) y el reporte se pierde.
+    final needsReason = targetState.requiresReason ||
+        (targetState.isFailed &&
+            (targetState.reasonOptions?.isNotEmpty ?? false));
     final needsNotes = targetState.requiresNotes;
 
     if (needsPhoto || needsReason || needsNotes) {

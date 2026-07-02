@@ -37,8 +37,8 @@ bloquea cuando más la necesita.
 Esta app nació con una prioridad clara: **que el conductor nunca quede
 atascado**. Está diseñada para ser rápida, legible de un vistazo, con
 confirmación háptica, y **resiliente al offline**: si no hay señal al cerrar una
-entrega, el cierre se guarda local y se sincroniza solo cuando vuelve la
-conexión. Nada se pierde.
+entrega, el cierre se persiste en disco y se sincroniza solo cuando vuelve la
+conexión.
 
 ---
 
@@ -56,21 +56,27 @@ conexión. Nada se pierde.
   obtiene de la política de entrega; el motivo elegido se envía verbatim).
 
 ### Resiliencia offline (outbox)
-- **Cierres a prueba de zonas muertas:** marcar una entrega COMPLETED/FAILED sin
+- **Cierres persistidos en disco:** marcar una entrega COMPLETED/FAILED sin
   señal **no bloquea** al conductor. El cierre — estado, motivo, notas, campos,
-  GPS y fotos — se **persiste en disco** y se **sincroniza automáticamente** al
-  recuperar conexión (reintenta por *timer*, al volver al foreground y en cada
-  carga de ruta).
+  GPS y fotos — se **persiste en disco antes de cualquier intento de red** y se
+  reintenta automáticamente (*timer* de 30 s, al volver al foreground y en cada
+  carga de ruta). Un rechazo definitivo del servidor (4xx) o superar los 60
+  reintentos **descarta la entrada**, con el error registrado solo en el
+  cliente.
 - **Cierre optimista:** la parada se marca como hecha al instante, con un aviso
   *"Sin señal: se enviará al reconectar"* y un banner de *N pendientes de
   sincronizar* en el inicio.
-- **Idempotente y seguro:** un reintento tras un *ack* perdido no duplica la
-  visita de entrega; las fotos se suben una sola vez (resume-safe).
+- **Idempotente:** un reintento tras un *ack* perdido no duplica la visita de
+  entrega (el `PATCH` terminal re-enviado es no-op server-side). Cada foto se
+  presigna con su índice por posición y las ya subidas quedan registradas para
+  no re-subirlas en el siguiente intento.
 
 ### Tracking GPS
 - Envío de ubicación con **cadencia adaptativa** (≈20 s en movimiento / ≈60 s
   detenido) para ahorrar batería, con nivel de batería y contexto de parada.
-- **Cola offline** de ubicaciones con reintentos cuando no hay conexión.
+- Cola **en memoria** de ubicaciones fallidas que se reenvía al recuperar
+  señal. A diferencia de los cierres, esta cola **se pierde si el proceso
+  muere** — es telemetría, no evidencia.
 - El GPS del dispositivo funciona sin red, por lo que la **posición real**
   queda registrada también en cada cierre de entrega (insumo para reconstruir
   la trayectoria del conductor).
@@ -105,9 +111,6 @@ conexión. Nada se pierde.
 
 ```bash
 flutter pub get
-
-# Generar el código de modelos (freezed / json_serializable)
-dart run build_runner build --delete-conflicting-outputs
 
 # Listar dispositivos y correr
 flutter devices
@@ -202,10 +205,13 @@ lib/
    **encola y persiste** (`shared_preferences`) antes de intentar enviarlo.
 2. Se intenta sincronizar de inmediato. Si hay señal → listo. Si no → queda en
    cola y la parada se marca **optimistamente** como hecha.
-3. El *flush* reintenta automáticamente: por *timer*, al volver al foreground y
-   en cada carga de ruta exitosa. Sube las fotos pendientes y hace el `PATCH`.
+3. El *flush* reintenta automáticamente: por *timer* (30 s), al volver al
+   foreground y en cada carga de ruta exitosa. Sube las fotos pendientes
+   (presignadas con su índice por posición, sin re-subir las ya registradas)
+   y hace el `PATCH`.
 4. El backend **no-opera** un reenvío de un estado terminal ya aplicado, así que
-   un reintento nunca duplica la visita de entrega.
+   un reintento nunca duplica la visita de entrega. Un `4xx` definitivo o más
+   de 60 reintentos descartan la entrada (el error queda solo en el cliente).
 
 ---
 

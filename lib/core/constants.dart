@@ -96,9 +96,14 @@ class StorageKeys {
 }
 
 /// Push notifications (OneSignal). App ID is public by design — the REST
-/// API key lives only on the backend.
+/// API key lives only on the backend. Overridable at build time so another
+/// install can pair its own OneSignal app: the value MUST match the
+/// backend's `ONESIGNAL_APP_ID` env (see `dart_define.example.json`).
 class PushConfig {
-  static const String oneSignalAppId = '35dbded5-641d-47b1-b931-07dad0d49770';
+  static const String oneSignalAppId = String.fromEnvironment(
+    'ONESIGNAL_APP_ID',
+    defaultValue: '35dbded5-641d-47b1-b931-07dad0d49770',
+  );
 }
 
 /// App Constants

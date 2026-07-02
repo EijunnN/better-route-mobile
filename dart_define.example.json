@@ -1,4 +1,5 @@
 {
   "API_BASE_URL": "https://api.tu-dominio.com",
-  "WS_URL": "wss://realtime.tu-dominio.com/connection/websocket"
+  "WS_URL": "wss://realtime.tu-dominio.com/connection/websocket",
+  "ONESIGNAL_APP_ID": "35dbded5-641d-47b1-b931-07dad0d49770"
 }

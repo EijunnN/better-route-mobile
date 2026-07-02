@@ -10,8 +10,20 @@ import '../core/constants.dart';
 import '../models/pending_close.dart';
 import 'api_service.dart';
 import 'route_service.dart';
+import 'workflow_service.dart';
 
 enum OutboxResult { synced, queued }
+
+/// Rejection at enqueue time: a FAILED close without a reason while the
+/// cached delivery policy declares failure reasons. Persisting it would be a
+/// guaranteed 400 → drop on drain — the failure would never reach dispatch.
+class MissingFailureReasonException implements Exception {
+  final String message =
+      'El reporte de fallo requiere un motivo de la política de entrega.';
+
+  @override
+  String toString() => message;
+}
 
 /// Disk-backed outbox for stop closes, so a driver can mark a delivery
 /// COMPLETED/FAILED in a no-signal zone: the close (and its photos) are
@@ -24,9 +36,22 @@ enum OutboxResult { synced, queued }
 class OfflineOutbox {
   static final OfflineOutbox _instance = OfflineOutbox._internal();
   factory OfflineOutbox() => _instance;
-  OfflineOutbox._internal();
+  OfflineOutbox._internal()
+      : _routeService = RouteService(),
+        _failureReasonRequired = _policyRequiresFailureReason;
 
-  final RouteService _routeService = RouteService();
+  @visibleForTesting
+  OfflineOutbox.forTesting({
+    required RouteService routeService,
+    bool Function()? failureReasonRequired,
+  })  : _routeService = routeService,
+        _failureReasonRequired = failureReasonRequired ?? (() => false);
+
+  static bool _policyRequiresFailureReason() =>
+      WorkflowService().cachedFailureReasons.isNotEmpty;
+
+  final RouteService _routeService;
+  final bool Function() _failureReasonRequired;
   final List<PendingClose> _entries = [];
   bool _loaded = false;
   bool _flushing = false;
@@ -73,6 +98,15 @@ class OfflineOutbox {
   /// [OutboxResult.synced] when it reached the server, or
   /// [OutboxResult.queued] when it stays pending (no signal).
   Future<OutboxResult> submitClose(PendingClose entry) async {
+    // FIX-2: gate at enqueue time. A FAILED close without a reason (when the
+    // cached policy has failureReasons) would drain as a 400 → definitive
+    // drop, silently losing the failure report.
+    if (entry.status == 'FAILED' &&
+        _failureReasonRequired() &&
+        (entry.failureReason == null || entry.failureReason!.trim().isEmpty)) {
+      throw MissingFailureReasonException();
+    }
+
     await _ensureLoaded();
     // Dedup by stop — a stop has at most one pending close.
     _entries.removeWhere((e) => e.stopId == entry.stopId);
@@ -106,14 +140,19 @@ class OfflineOutbox {
   Future<bool> _flushOne(PendingClose entry) async {
     try {
       // 1. Upload photos not yet uploaded (resume-safe via uploadedByPath).
+      // FIX-1: presign with index = position + 1, like the online path —
+      // without it the R2 key is deterministic per trackingId and photos
+      // 2..N overwrite the first.
       var current = entry;
-      for (final path in entry.photoPaths) {
+      for (var i = 0; i < entry.photoPaths.length; i++) {
+        final path = entry.photoPaths[i];
         if (current.uploadedByPath.containsKey(path)) continue;
         final file = File(path);
         if (!await file.exists()) continue; // file gone — skip this photo
         final url = await _routeService.uploadEvidencePhoto(
           photo: file,
           trackingId: entry.trackingId,
+          index: i + 1,
         );
         final map = Map<String, String>.from(current.uploadedByPath)
           ..[path] = url;
@@ -178,20 +217,24 @@ class OfflineOutbox {
     }
   }
 
+  /// Spec §2: transitorio = sin response, status null o >=500, excepción
+  /// desconocida, y 409 (lock optimista — el próximo intento puede ganar).
+  /// Definitivo = cualquier otro 4xx.
   bool _isRetryable(Object e) {
     if (e is DioException) {
       if (e.response == null) return true; // transport/network failure
       final inner = e.error;
-      if (inner is ApiException) {
-        return inner.statusCode == null || inner.statusCode! >= 500;
-      }
-      return (e.response?.statusCode ?? 0) >= 500;
+      if (inner is ApiException) return _isRetryableStatus(inner.statusCode);
+      return _isRetryableStatus(e.response?.statusCode);
     }
     if (e is ApiException) {
-      return e.statusCode == null || e.statusCode! >= 500;
+      return _isRetryableStatus(e.statusCode);
     }
     return true; // unknown — treat as transient
   }
+
+  bool _isRetryableStatus(int? status) =>
+      status == null || status >= 500 || status == 409;
 
   void _replace(PendingClose entry) {
     final i = _entries.indexWhere((e) => e.id == entry.id);

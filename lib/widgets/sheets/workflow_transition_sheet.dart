@@ -40,7 +40,14 @@ class _WorkflowTransitionSheetState extends State<WorkflowTransitionSheet> {
   String? _selectedReason;
 
   bool get _needsPhoto => widget.targetState.requiresPhoto;
-  bool get _needsReason => widget.targetState.requiresReason;
+
+  /// FIX-2: a FAILED close whose policy declares failure reasons MUST carry
+  /// one — even if the state's `requiresReason` flag didn't make it through.
+  /// Enqueueing reason-less FAILED means a 400 → drop on drain (lost report).
+  bool get _needsReason =>
+      widget.targetState.requiresReason ||
+      (widget.targetState.isFailed && (_reasonOptions?.isNotEmpty ?? false));
+
   bool get _needsNotes => widget.targetState.requiresNotes;
   List<String>? get _reasonOptions => widget.targetState.reasonOptions;
 

@@ -12,9 +12,10 @@ despacho. Textos de cara al conductor en **español** (LATAM).
 
 ## ⚠️ REGLA #1 — NO se usa CODEGEN
 
-`pubspec.yaml` declara `freezed`, `json_serializable`, `riverpod_generator`,
-`riverpod_annotation` y `build_runner`, y `README.md` menciona
-`dart run build_runner build`. **Esto es engañoso: el repo NO usa codegen.**
+El repo **NO usa codegen**. Las deps de codegen que declaraba el `pubspec`
+(`freezed`, `json_serializable`, `riverpod_generator`, `riverpod_annotation`,
+`build_runner`) fueron purgadas el 2026-07-02, junto con la línea
+`dart run build_runner build` del `README.md`.
 
 - **CERO** archivos `*.g.dart` / `*.freezed.dart`, **cero** directivas `part '...'`,
   **cero** anotaciones `@freezed` / `@riverpod` en todo `lib/`.
@@ -24,16 +25,13 @@ despacho. Textos de cara al conductor en **español** (LATAM).
   `lib/providers/route_provider.dart`.
 
 > **NUNCA** corras `build_runner`, ni escribas modelos `freezed` o providers
-> `@riverpod`, ni agregues `part`. Es el error más probable de un agente que
-> lee `pubspec` + `README` sin auditar `lib/`.
+> `@riverpod`, ni agregues `part`, ni re-agregues las deps de codegen al
+> `pubspec`.
 
 **Casos borde de la regla (decididos 2026-07-01):**
 
-- **Purgar, no tolerar:** las deps de codegen del `pubspec` (`freezed`,
-  `json_serializable`, `riverpod_generator`, `riverpod_annotation`,
-  `build_runner`) **deben eliminarse** (tarea Opus), junto con la línea
-  `dart run build_runner build` del `README.md`. Pre-deploy: se borra, no
-  se documenta alrededor.
+- **Purgar, no tolerar:** las deps de codegen no vuelven al `pubspec` bajo
+  ningún pretexto. Pre-deploy: se borra, no se documenta alrededor.
 - **`part` / `part of`:** prohibidos también para split manual de libraries.
   Un archivo que crece se divide en archivos normales + barrel, no en parts.
 - **Tests:** mocking con **`mocktail`** (sin codegen). Nunca `mockito`
@@ -62,13 +60,11 @@ el backend ⇒ consultar el contrato; cambiar un shape ⇒ bump de
 `CONTRACT_VERSION` en ambos repos.
 
 > **Drifts conocidos — no razones desde estos docs:**
-> - `SETUP.md` dice que los tokens se guardan en `SharedPreferences` → **FALSO**:
->   van en `flutter_secure_storage` (`lib/services/storage_service.dart`).
->   `SharedPreferences` solo se usa para el offline outbox y el flag de onboarding.
-> - La tabla de endpoints de `SETUP.md` omite el prefijo `/api` (el código usa
->   `/api/...` en `lib/core/constants.dart`).
 > - Naming inconsistente: `pubspec` = `aea`, clase `EntregasApp`, título
 >   `BetterRoute`, README "Driver Cockpit". Nombre canónico del producto: **BetterRoute**.
+>
+> (Los drifts de `SETUP.md` — tokens en `SharedPreferences`, tabla de endpoints
+> sin `/api` — se corrigieron el 2026-07-02.)
 
 ---
 
@@ -124,8 +120,10 @@ el backend ⇒ consultar el contrato; cambiar un shape ⇒ bump de
 - `flutter run --dart-define=API_BASE_URL=... --dart-define=WS_URL=...` — dev
   (ver `dart_define.example.json`).
 - `scripts/build-release.ps1` / `scripts/build-release.sh` — build de release.
-
-> No hay carpeta `test/` todavía pese a que `flutter_test` es dev-dep.
+- `flutter test` — suite completa: outbox (`test/offline_outbox_test.dart`) +
+  contract-tests del seam (`test/contract/`, §10 del contrato; los fixtures de
+  `test/contract/fixtures/` se espejan desde el web con
+  `scripts/sync-contract-fixtures`).
 
 ## Docs
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
@@ -27,7 +29,12 @@ class ApiService {
 
   late final Dio _dio;
   final StorageService _storage = StorageService();
-  bool _isRefreshing = false;
+
+  /// In-flight token refresh. Concurrent 401s await this same future and
+  /// replay with the winning token (single-flight — FIX-4). Null when no
+  /// refresh is running. Completes with the new access token, or null when
+  /// the refresh failed.
+  Completer<String?>? _refreshCompleter;
 
   ApiService._internal() {
     _dio = Dio(
@@ -95,68 +102,89 @@ class ApiService {
     handler.next(response);
   }
 
-  /// Handle errors and refresh token if needed
+  /// Handle errors; on 401, refresh the session (single-flight) and replay.
   Future<void> _onError(
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    // Check if 401 and we have a refresh token
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
-      _isRefreshing = true;
+    final isRefreshCall =
+        err.requestOptions.path == ApiConfig.refreshEndpoint;
+    final alreadyRetried = err.requestOptions.extra['authRetried'] == true;
 
-      try {
-        final refreshToken = await _storage.getRefreshToken();
-        if (refreshToken != null) {
-          // Try to refresh token
-          final response = await _dio.post(
-            ApiConfig.refreshEndpoint,
-            data: {'refreshToken': refreshToken},
-            options: Options(
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            ),
-          );
-
-          if (response.statusCode == 200) {
-            final data = response.data as Map<String, dynamic>;
-            final newAccessToken = data['accessToken'] as String;
-            final newRefreshToken = data['refreshToken'] as String;
-
-            // Save new tokens
-            await _storage.saveAccessToken(newAccessToken);
-            await _storage.saveRefreshToken(newRefreshToken);
-
-            // Retry original request
-            _isRefreshing = false;
-            final opts = err.requestOptions;
-            opts.headers['Authorization'] = 'Bearer $newAccessToken';
-
-            final retryResponse = await _dio.fetch(opts);
-            return handler.resolve(retryResponse);
-          }
+    if (err.response?.statusCode == 401 && !isRefreshCall && !alreadyRetried) {
+      final newToken = await _refreshedAccessToken();
+      if (newToken != null) {
+        final opts = err.requestOptions;
+        opts.extra['authRetried'] = true;
+        opts.headers['Authorization'] = 'Bearer $newToken';
+        try {
+          final retryResponse = await _dio.fetch(opts);
+          return handler.resolve(retryResponse);
+        } on DioException catch (retryErr) {
+          // The replay ran through the interceptor chain again, so it is
+          // already ApiException-wrapped (authRetried stops a second refresh).
+          return handler.reject(retryErr);
         }
-      } catch (e) {
-        // Refresh failed, clear storage and propagate error
-        await _storage.clearAll();
-      } finally {
-        _isRefreshing = false;
       }
     }
 
-    // Convert to ApiException
-    final message = _getErrorMessage(err);
-    handler.reject(
-      DioException(
-        requestOptions: err.requestOptions,
-        error: ApiException(
-          message,
-          statusCode: err.response?.statusCode,
-          data: err.response?.data,
-        ),
-        type: err.type,
-        response: err.response,
+    handler.reject(_toApiError(err));
+  }
+
+  /// Single-flight refresh: the first 401 kicks off the refresh; concurrent
+  /// 401s await the same in-flight future and replay with the winning pair.
+  /// Returns null when the refresh failed. Storage is nuked ONLY on a real
+  /// 401 from `/refresh` (session over) — a timeout or network drop must not
+  /// destroy a still-valid session.
+  Future<String?> _refreshedAccessToken() {
+    final inFlight = _refreshCompleter;
+    if (inFlight != null) return inFlight.future;
+
+    final completer = Completer<String?>();
+    _refreshCompleter = completer;
+
+    () async {
+      try {
+        final refreshToken = await _storage.getRefreshToken();
+        if (refreshToken == null) {
+          completer.complete(null);
+          return;
+        }
+        final response = await _dio.post(
+          ApiConfig.refreshEndpoint,
+          data: {'refreshToken': refreshToken},
+          options: Options(headers: {'Content-Type': 'application/json'}),
+        );
+        final data = response.data as Map<String, dynamic>;
+        final newAccessToken = data['accessToken'] as String;
+        final newRefreshToken = data['refreshToken'] as String;
+
+        await _storage.saveAccessToken(newAccessToken);
+        await _storage.saveRefreshToken(newRefreshToken);
+        completer.complete(newAccessToken);
+      } catch (e) {
+        if (e is DioException && e.response?.statusCode == 401) {
+          await _storage.clearAll();
+        }
+        completer.complete(null);
+      } finally {
+        _refreshCompleter = null;
+      }
+    }();
+
+    return completer.future;
+  }
+
+  DioException _toApiError(DioException err) {
+    return DioException(
+      requestOptions: err.requestOptions,
+      error: ApiException(
+        _getErrorMessage(err),
+        statusCode: err.response?.statusCode,
+        data: err.response?.data,
       ),
+      type: err.type,
+      response: err.response,
     );
   }
 
